@@ -1129,7 +1129,13 @@ class ImageRedaction(
         | ImageRedaction5
     ]
 ):
-    root: ImageRedaction1 | ImageRedaction2 | ImageRedaction3 | ImageRedaction4 | ImageRedaction5
+    root: (
+        ImageRedaction1
+        | ImageRedaction2
+        | ImageRedaction3
+        | ImageRedaction4
+        | ImageRedaction5
+    )
     """
     Operator spec a `redact` image rule carries.
     """
@@ -1922,7 +1928,9 @@ class RegisteredRecognizer(BaseModel):
 
 
 class RenameWorkspaceReview(BaseModel):
-    display_name: str | None = Field(None, alias="displayName")
+    display_name: constr(min_length=1, max_length=255) | None = Field(
+        None, alias="displayName"
+    )
     """
     The new title (1-255 characters). Omitting the field leaves the current
     title unchanged.
@@ -2801,7 +2809,20 @@ class TextRedaction(
         | TextRedaction12
     ]
 ):
-    root: TextRedaction1 | TextRedaction2 | TextRedaction3 | TextRedaction4 | TextRedaction5 | TextRedaction6 | TextRedaction7 | TextRedaction8 | TextRedaction9 | TextRedaction10 | TextRedaction11 | TextRedaction12
+    root: (
+        TextRedaction1
+        | TextRedaction2
+        | TextRedaction3
+        | TextRedaction4
+        | TextRedaction5
+        | TextRedaction6
+        | TextRedaction7
+        | TextRedaction8
+        | TextRedaction9
+        | TextRedaction10
+        | TextRedaction11
+        | TextRedaction12
+    )
     """
     Operator spec a `redact` text rule carries.
     """
@@ -6629,7 +6650,51 @@ class ActivityPayload(
         | ActivityPayload43
     ]
 ):
-    root: ActivityPayload1 | ActivityPayload2 | ActivityPayload3 | ActivityPayload4 | ActivityPayload5 | ActivityPayload6 | ActivityPayload7 | ActivityPayload8 | ActivityPayload9 | ActivityPayload10 | ActivityPayload11 | ActivityPayload12 | ActivityPayload13 | ActivityPayload14 | ActivityPayload15 | ActivityPayload16 | ActivityPayload17 | ActivityPayload18 | ActivityPayload19 | ActivityPayload20 | ActivityPayload21 | ActivityPayload22 | ActivityPayload23 | ActivityPayload24 | ActivityPayload25 | ActivityPayload26 | ActivityPayload27 | ActivityPayload28 | ActivityPayload29 | ActivityPayload30 | ActivityPayload31 | ActivityPayload32 | ActivityPayload33 | ActivityPayload34 | ActivityPayload35 | ActivityPayload36 | ActivityPayload37 | ActivityPayload38 | ActivityPayload39 | ActivityPayload40 | ActivityPayload41 | ActivityPayload42 | ActivityPayload43
+    root: (
+        ActivityPayload1
+        | ActivityPayload2
+        | ActivityPayload3
+        | ActivityPayload4
+        | ActivityPayload5
+        | ActivityPayload6
+        | ActivityPayload7
+        | ActivityPayload8
+        | ActivityPayload9
+        | ActivityPayload10
+        | ActivityPayload11
+        | ActivityPayload12
+        | ActivityPayload13
+        | ActivityPayload14
+        | ActivityPayload15
+        | ActivityPayload16
+        | ActivityPayload17
+        | ActivityPayload18
+        | ActivityPayload19
+        | ActivityPayload20
+        | ActivityPayload21
+        | ActivityPayload22
+        | ActivityPayload23
+        | ActivityPayload24
+        | ActivityPayload25
+        | ActivityPayload26
+        | ActivityPayload27
+        | ActivityPayload28
+        | ActivityPayload29
+        | ActivityPayload30
+        | ActivityPayload31
+        | ActivityPayload32
+        | ActivityPayload33
+        | ActivityPayload34
+        | ActivityPayload35
+        | ActivityPayload36
+        | ActivityPayload37
+        | ActivityPayload38
+        | ActivityPayload39
+        | ActivityPayload40
+        | ActivityPayload41
+        | ActivityPayload42
+        | ActivityPayload43
+    )
     """
     The typed payload of an audit-log activity, tagged by `type` with its params
     under `data` (the same `{type, data}` envelope the notification payload and
@@ -7084,7 +7149,16 @@ class NotificationPayload(
         | NotificationPayload8
     ]
 ):
-    root: NotificationPayload1 | NotificationPayload2 | NotificationPayload3 | NotificationPayload4 | NotificationPayload5 | NotificationPayload6 | NotificationPayload7 | NotificationPayload8
+    root: (
+        NotificationPayload1
+        | NotificationPayload2
+        | NotificationPayload3
+        | NotificationPayload4
+        | NotificationPayload5
+        | NotificationPayload6
+        | NotificationPayload7
+        | NotificationPayload8
+    )
     """
     The typed payload of a notification, tagged by `type` with its params under
     `data` (the same `{type, data}` envelope the activity log and outbox event use).
@@ -7140,7 +7214,19 @@ class TabularAuditKind(
         | TabularAuditKind11
     ]
 ):
-    root: TabularAuditKind1 | TabularAuditKind2 | TabularAuditKind3 | TabularAuditKind4 | TabularAuditKind5 | TabularAuditKind6 | TabularAuditKind7 | TabularAuditKind8 | TabularAuditKind9 | TabularAuditKind10 | TabularAuditKind11
+    root: (
+        TabularAuditKind1
+        | TabularAuditKind2
+        | TabularAuditKind3
+        | TabularAuditKind4
+        | TabularAuditKind5
+        | TabularAuditKind6
+        | TabularAuditKind7
+        | TabularAuditKind8
+        | TabularAuditKind9
+        | TabularAuditKind10
+        | TabularAuditKind11
+    )
     """
     Kind of an [`AuditEvent`], carrying its event-specific detail and the
     rationale for why it happened.
@@ -7543,7 +7629,19 @@ class AudioAuditKind(
         | AudioAuditKind11
     ]
 ):
-    root: AudioAuditKind1 | AudioAuditKind2 | AudioAuditKind3 | AudioAuditKind4 | AudioAuditKind5 | AudioAuditKind6 | AudioAuditKind7 | AudioAuditKind8 | AudioAuditKind9 | AudioAuditKind10 | AudioAuditKind11
+    root: (
+        AudioAuditKind1
+        | AudioAuditKind2
+        | AudioAuditKind3
+        | AudioAuditKind4
+        | AudioAuditKind5
+        | AudioAuditKind6
+        | AudioAuditKind7
+        | AudioAuditKind8
+        | AudioAuditKind9
+        | AudioAuditKind10
+        | AudioAuditKind11
+    )
     """
     Kind of an [`AuditEvent`], carrying its event-specific detail and the
     rationale for why it happened.
@@ -7675,7 +7773,19 @@ class ImageAuditKind(
         | ImageAuditKind11
     ]
 ):
-    root: ImageAuditKind1 | ImageAuditKind2 | ImageAuditKind3 | ImageAuditKind4 | ImageAuditKind5 | ImageAuditKind6 | ImageAuditKind7 | ImageAuditKind8 | ImageAuditKind9 | ImageAuditKind10 | ImageAuditKind11
+    root: (
+        ImageAuditKind1
+        | ImageAuditKind2
+        | ImageAuditKind3
+        | ImageAuditKind4
+        | ImageAuditKind5
+        | ImageAuditKind6
+        | ImageAuditKind7
+        | ImageAuditKind8
+        | ImageAuditKind9
+        | ImageAuditKind10
+        | ImageAuditKind11
+    )
     """
     Kind of an [`AuditEvent`], carrying its event-specific detail and the
     rationale for why it happened.
@@ -7939,7 +8049,19 @@ class TextAuditKind(
         | TextAuditKind11
     ]
 ):
-    root: TextAuditKind1 | TextAuditKind2 | TextAuditKind3 | TextAuditKind4 | TextAuditKind5 | TextAuditKind6 | TextAuditKind7 | TextAuditKind8 | TextAuditKind9 | TextAuditKind10 | TextAuditKind11
+    root: (
+        TextAuditKind1
+        | TextAuditKind2
+        | TextAuditKind3
+        | TextAuditKind4
+        | TextAuditKind5
+        | TextAuditKind6
+        | TextAuditKind7
+        | TextAuditKind8
+        | TextAuditKind9
+        | TextAuditKind10
+        | TextAuditKind11
+    )
     """
     Kind of an [`AuditEvent`], carrying its event-specific detail and the
     rationale for why it happened.
@@ -8788,7 +8910,16 @@ class Predicate(
         | Predicate8
     ]
 ):
-    root: Predicate1 | Predicate2 | Predicate3 | Predicate4 | Predicate5 | Predicate6 | Predicate7 | Predicate8
+    root: (
+        Predicate1
+        | Predicate2
+        | Predicate3
+        | Predicate4
+        | Predicate5
+        | Predicate6
+        | Predicate7
+        | Predicate8
+    )
     """
     Predicate over a recognised entity. The wire format uses an
     internally tagged enum so authors write
