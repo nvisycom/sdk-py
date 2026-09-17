@@ -7,7 +7,7 @@ name = "nvisy-sdk"
 version = "0.2.0"
 description = "Async Python SDK for the Nvisy document processing platform"
 readme = "README.md"
-license = { file = "LICENSE.txt" }
+license = { file = "LICENSE" }
 authors = [
     { name = "Nvisy Team", email = "dev@nvisy.com" },
 ]
