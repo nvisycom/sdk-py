@@ -25,7 +25,7 @@ make setup
 - `make dev` - Run development checks (format + lint + test)
 - `make test` - Run test suite
 - `make test-cov` - Run tests with coverage report
-- `make test-watch` - Run tests in watch mode
+- `make security` - Audit dependencies and run static analysis
 - `make lint` - Check code style and quality
 - `make format` - Format code with ruff
 - `make check` - Run all linting, formatting, and type checks

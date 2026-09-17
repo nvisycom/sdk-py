@@ -13,6 +13,10 @@ OPENAPI_FILENAME ?= nvisy-api.json
 GENERATED_MODELS ?= src/nvisy/datatypes.py
 PYTHON_VERSION ?= 3.11
 
+# Every development tool is declared in the `dev` extra, so each invocation
+# has to select it; `uv run` alone would miss them in a clean environment.
+RUN := uv run --extra dev
+
 # Colors for output
 RED := \033[0;31m
 GREEN := \033[0;32m
@@ -34,7 +38,7 @@ help:
 	@echo "$(YELLOW)Setup:$(NC)"
 	@echo "  install       - Install dependencies with uv"
 	@echo "  install-dev   - Install development dependencies"
-	@echo "  setup         - Install development dependencies"
+	@echo "  setup         - Prepare the project for development"
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  format        - Format code with ruff"
@@ -43,6 +47,7 @@ help:
 	@echo "  check         - Run all checks (format, lint, type-check)"
 	@echo "  test          - Run tests with pytest"
 	@echo "  test-cov      - Run tests with coverage report"
+	@echo "  dev           - Format, lint, and test in one pass"
 	@echo ""
 	@echo "$(YELLOW)OpenAPI:$(NC)"
 	@echo "  generate       - Download spec from production and generate datatypes"
@@ -81,22 +86,22 @@ setup: install-dev
 .PHONY: format
 format:
 	$(call log,Formatting code with ruff...)
-	uv run ruff format src tests
+	$(RUN) ruff format src tests
 
 .PHONY: lint
 lint:
 	$(call log,Linting code with ruff...)
-	uv run ruff check src tests
+	$(RUN) ruff check src tests
 
 .PHONY: lint-fix
 lint-fix:
 	$(call log,Fixing linting issues with ruff...)
-	uv run ruff check --fix src tests
+	$(RUN) ruff check --fix src tests
 
 .PHONY: type-check
 type-check:
 	$(call log,Running type checks with mypy...)
-	uv run mypy src
+	$(RUN) mypy src
 
 .PHONY: check
 check: format lint type-check
@@ -106,17 +111,17 @@ check: format lint type-check
 .PHONY: test
 test:
 	$(call log,Running tests...)
-	uv run pytest
+	$(RUN) pytest
 
 .PHONY: test-cov
 test-cov:
 	$(call log,Running tests with coverage...)
-	uv run pytest --cov=nvisy --cov-report=term-missing --cov-report=html
+	$(RUN) pytest --cov=nvisy --cov-report=term-missing --cov-report=html
 
 .PHONY: test-verbose
 test-verbose:
 	$(call log,Running tests in verbose mode...)
-	uv run pytest -v
+	$(RUN) pytest -v
 
 # OpenAPI targets
 #
@@ -156,7 +161,7 @@ download-spec-local:
 .PHONY: generate-models
 generate-models:
 	$(call log,Generating datatypes from OpenAPI specification...)
-	@uv run datamodel-codegen \
+	@$(RUN) datamodel-codegen \
 		--input $(OPENAPI_OUTPUT_DIR)/$(OPENAPI_FILENAME) \
 		--input-file-type openapi \
 		--output $(GENERATED_MODELS) \
@@ -187,12 +192,12 @@ build:
 .PHONY: publish-test
 publish-test: build
 	$(call log,Publishing to Test PyPI...)
-	uv run twine upload --repository testpypi dist/*
+	$(RUN) twine upload --repository testpypi dist/*
 
 .PHONY: publish
 publish: build
 	$(call log,Publishing to PyPI...)
-	uv run twine upload dist/*
+	$(RUN) twine upload dist/*
 
 # Maintenance targets
 .PHONY: clean
@@ -233,7 +238,7 @@ security:
 		uv export --frozen --no-dev --no-emit-project --format requirements-txt >"$$export_file"; \
 		uv tool run pip-audit --requirement "$$export_file" --no-deps --disable-pip --strict
 	$(call log,Running bandit...)
-	@uv run bandit -c pyproject.toml -r src --severity-level medium
+	@$(RUN) bandit -c pyproject.toml -r src --severity-level medium
 	$(call log,Security checks complete)
 
 # Quick development cycle
