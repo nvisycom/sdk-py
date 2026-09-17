@@ -1,433 +1,184 @@
-"""Main client class for the Nvisy SDK."""
+"""The Nvisy client."""
 
-import asyncio
-import time
-from typing import TYPE_CHECKING, Any
-from urllib.parse import urljoin
+from __future__ import annotations
 
-import httpx
+from typing import TYPE_CHECKING
 
-from .config import ClientConfiguration
-from .errors import ApiError, NetworkError
+from .config import (
+    DEFAULT_BASE_URL,
+    ENV_BASE_URL,
+    ENV_USER_AGENT,
+    api_token_from_environment,
+    validate_api_token,
+    validate_base_url,
+)
+from .http import create_http_client
+from .services import Status, Workspaces
 
 if TYPE_CHECKING:
-    from .builder import ClientBuilder
+    import os
+    from collections.abc import Mapping
+    from types import TracebackType
+
+    import httpx
 
 
-class Client:
-    """Main client for the Nvisy API.
+class Nvisy:
+    """Client for the Nvisy document processing API.
 
-    Provides HTTP request functionality with automatic retries,
-    error handling, and both async and sync interfaces.
+    Authenticates with an API token. Every request is issued asynchronously,
+    so the client is used inside an event loop, ideally as a context manager
+    so its connections are closed when you are done:
+
+        ```python
+        async with Nvisy(api_token="...") as nvisy:
+            account = await nvisy.account.get_account()
+        ```
     """
 
-    def __init__(self, config: ClientConfiguration | dict[str, Any]) -> None:
+    def __init__(
+        self,
+        *,
+        api_token: str,
+        base_url: str = DEFAULT_BASE_URL,
+        headers: Mapping[str, str] | None = None,
+        user_agent: str | None = None,
+        with_logging: bool = False,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
         """Initialize the client.
 
         Args:
-            config: Configuration object or dictionary
-        """
-        if isinstance(config, dict):
-            self.config = ClientConfiguration(**config)
-        else:
-            self.config = config
-
-        self._http_client: httpx.AsyncClient | None = None
-        self._sync_http_client: httpx.Client | None = None
-
-    @classmethod
-    def builder(cls) -> "ClientBuilder":
-        """Create a client builder for fluent configuration.
-
-        Returns:
-            New ClientBuilder instance
-        """
-        from .builder import ClientBuilder
-
-        return ClientBuilder()
-
-    @classmethod
-    def from_environment(cls) -> "Client":
-        """Create a client from environment variables.
-
-        Returns:
-            Client configured from environment variables
-        """
-        config = ClientConfiguration.from_environment()
-        return cls(config)
-
-    def _get_async_client(self) -> httpx.AsyncClient:
-        """Get or create the async HTTP client."""
-        if self._http_client is None:
-            self._http_client = httpx.AsyncClient(
-                base_url=self.config.base_url,
-                headers=self.config.get_effective_headers(),
-                timeout=httpx.Timeout(
-                    connect=10.0, read=self.config.timeout, write=10.0, pool=5.0
-                ),
-                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-                follow_redirects=True,
-            )
-        return self._http_client
-
-    def _get_sync_client(self) -> httpx.Client:
-        """Get or create the sync HTTP client."""
-        if self._sync_http_client is None:
-            self._sync_http_client = httpx.Client(
-                base_url=self.config.base_url,
-                headers=self.config.get_effective_headers(),
-                timeout=httpx.Timeout(
-                    connect=10.0, read=self.config.timeout, write=10.0, pool=5.0
-                ),
-                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-                follow_redirects=True,
-            )
-        return self._sync_http_client
-
-    async def request(  # noqa: PLR0912
-        self,
-        method: str,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make an async HTTP request with retry logic.
-
-        Args:
-            method: HTTP method
-            path: API endpoint path
-            params: Query parameters
-            json: JSON request body
-            data: Form data
-            headers: Additional headers
-
-        Returns:
-            Response data
+            api_token: Token to authenticate with.
+            base_url: Base URL for the API.
+            headers: Extra headers sent with every request, merged over the
+                defaults so any of them can be overridden.
+            user_agent: Custom user agent; defaults to one naming the SDK.
+            with_logging: Whether to log requests and responses to the `nvisy`
+                logger at debug level.
+            transport: Custom transport, chiefly for tests.
 
         Raises:
-            ApiError: For API errors
-            NetworkError: For network/connection errors
+            NvisyError: If the token or the base URL is invalid.
         """
-        client = self._get_async_client()
-        url = (
-            path
-            if path.startswith(("http://", "https://"))
-            else urljoin(self.config.base_url + "/", path.lstrip("/"))
+        self._api_token = validate_api_token(api_token)
+        self._base_url = validate_base_url(base_url)
+        self._headers = dict(headers or {})
+        self._user_agent = user_agent
+        self._with_logging = with_logging
+        self._transport = transport
+
+        self._http = create_http_client(
+            api_token=self._api_token,
+            base_url=self._base_url,
+            headers=self._headers,
+            user_agent=self._user_agent,
+            with_logging=with_logging,
+            transport=transport,
         )
 
-        request_headers = {}
-        if headers:
-            request_headers.update(headers)
+    @classmethod
+    def from_environment(
+        cls,
+        environ: Mapping[str, str] | os._Environ[str] | None = None,
+        **overrides: object,
+    ) -> Nvisy:
+        """Build a client from environment variables.
 
-        attempt = 0
-        last_exception: Exception | None = None
-
-        while attempt <= self.config.max_retries:
-            try:
-                response = await client.request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    json=json,
-                    data=data,
-                    headers=request_headers,
-                )
-
-                # Handle successful responses
-                if 200 <= response.status_code < 300:
-                    content_type = response.headers.get("content-type", "")
-                    if content_type.startswith("application/json"):
-                        return response.json()
-                    return {"data": response.text}
-
-                # Handle error responses
-                try:
-                    error_data = response.json()
-                except Exception:
-                    error_data = {"message": response.text or "Unknown error"}
-
-                request_id = response.headers.get("x-request-id")
-                raise ApiError.from_response(
-                    response.status_code,
-                    response.reason_phrase,
-                    error_data,
-                    request_id,
-                )
-
-            except httpx.TimeoutException as e:
-                timeout_ms = int(self.config.timeout * 1000)
-                last_exception = NetworkError.timeout(timeout_ms)
-                last_exception.cause = e
-            except httpx.ConnectError as e:
-                last_exception = NetworkError.connection("Failed to connect to API", e)
-            except httpx.HTTPError as e:
-                last_exception = NetworkError.connection("HTTP error occurred", e)
-            except ApiError:
-                # Re-raise API errors immediately without retry
-                raise
-
-            attempt += 1
-            if attempt <= self.config.max_retries and last_exception:
-                # Simple exponential backoff
-                await asyncio.sleep(min(2 ** (attempt - 1), 10))
-
-        if last_exception:
-            raise last_exception
-        raise NetworkError.connection("Request failed after all retry attempts")
-
-    def request_sync(  # noqa: PLR0912
-        self,
-        method: str,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a sync HTTP request with retry logic.
+        Reads `NVISY_API_TOKEN` (required), `NVISY_BASE_URL`, and
+        `NVISY_USER_AGENT`.
 
         Args:
-            method: HTTP method
-            path: API endpoint path
-            params: Query parameters
-            json: JSON request body
-            data: Form data
-            headers: Additional headers
+            environ: Environment to read; defaults to the process environment.
+            **overrides: Arguments passed to the constructor, taking
+                precedence over the environment.
 
         Returns:
-            Response data
+            The configured client.
 
         Raises:
-            ApiError: For API errors
-            NetworkError: For network/connection errors
+            NvisyError: If no API token is set.
         """
-        client = self._get_sync_client()
-        url = (
-            path
-            if path.startswith(("http://", "https://"))
-            else urljoin(self.config.base_url + "/", path.lstrip("/"))
+        import os as _os
+
+        env = _os.environ if environ is None else environ
+
+        settings: dict[str, object] = {"api_token": api_token_from_environment()}
+        if base_url := env.get(ENV_BASE_URL):
+            settings["base_url"] = base_url
+        if user_agent := env.get(ENV_USER_AGENT):
+            settings["user_agent"] = user_agent
+        settings.update(overrides)
+
+        return cls(**settings)  # type: ignore[arg-type]
+
+    def with_api_token(self, api_token: str) -> Nvisy:
+        """Build a client like this one but authenticating with another token.
+
+        This client is left as it is.
+
+        Args:
+            api_token: The token the new client should use.
+
+        Returns:
+            The new client.
+
+        Raises:
+            NvisyError: If the token is invalid.
+        """
+        return type(self)(
+            api_token=api_token,
+            base_url=self._base_url,
+            headers=self._headers,
+            user_agent=self._user_agent,
+            with_logging=self._with_logging,
+            transport=self._transport,
         )
 
-        request_headers = {}
-        if headers:
-            request_headers.update(headers)
+    @property
+    def base_url(self) -> str:
+        """The base URL requests are sent to."""
+        return self._base_url
 
-        attempt = 0
-        last_exception: Exception | None = None
+    @property
+    def http(self) -> httpx.AsyncClient:
+        """The underlying HTTP client, for endpoints the services do not cover."""
+        return self._http
 
-        while attempt <= self.config.max_retries:
-            try:
-                response = client.request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    json=json,
-                    data=data,
-                    headers=request_headers,
-                )
+    @property
+    def status(self) -> Status:
+        """API status and health checks."""
+        return Status(self._http)
 
-                # Handle successful responses
-                if 200 <= response.status_code < 300:
-                    content_type = response.headers.get("content-type", "")
-                    if content_type.startswith("application/json"):
-                        return response.json()
-                    return {"data": response.text}
+    @property
+    def workspaces(self) -> Workspaces:
+        """Workspace management."""
+        return Workspaces(self._http)
 
-                # Handle error responses
-                try:
-                    error_data = response.json()
-                except Exception:
-                    error_data = {"message": response.text or "Unknown error"}
+    async def aclose(self) -> None:
+        """Close the underlying connections."""
+        await self._http.aclose()
 
-                request_id = response.headers.get("x-request-id")
-                raise ApiError.from_response(
-                    response.status_code,
-                    response.reason_phrase,
-                    error_data,
-                    request_id,
-                )
+    async def __aenter__(self) -> Nvisy:
+        """Enter the context manager.
 
-            except httpx.TimeoutException as e:
-                timeout_ms = int(self.config.timeout * 1000)
-                last_exception = NetworkError.timeout(timeout_ms)
-                last_exception.cause = e
-            except httpx.ConnectError as e:
-                last_exception = NetworkError.connection("Failed to connect to API", e)
-            except httpx.HTTPError as e:
-                last_exception = NetworkError.connection("HTTP error occurred", e)
-            except ApiError:
-                # Re-raise API errors immediately without retry
-                raise
-
-            attempt += 1
-            if attempt <= self.config.max_retries and last_exception:
-                # Simple exponential backoff
-                time.sleep(min(2 ** (attempt - 1), 10))
-
-        if last_exception:
-            raise last_exception
-        raise NetworkError.connection("Request failed after all retry attempts")
-
-    # Convenience methods for common HTTP verbs
-    async def get(
-        self,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a GET request."""
-        return await self.request("GET", path, params=params, headers=headers)
-
-    async def post(
-        self,
-        path: str,
-        *,
-        json: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a POST request."""
-        return await self.request(
-            "POST", path, json=json, data=data, params=params, headers=headers
-        )
-
-    async def put(
-        self,
-        path: str,
-        *,
-        json: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a PUT request."""
-        return await self.request(
-            "PUT", path, json=json, data=data, params=params, headers=headers
-        )
-
-    async def patch(
-        self,
-        path: str,
-        *,
-        json: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a PATCH request."""
-        return await self.request(
-            "PATCH", path, json=json, data=data, params=params, headers=headers
-        )
-
-    async def delete(
-        self,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a DELETE request."""
-        return await self.request("DELETE", path, params=params, headers=headers)
-
-    # Sync versions
-    def get_sync(
-        self,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a sync GET request."""
-        return self.request_sync("GET", path, params=params, headers=headers)
-
-    def post_sync(
-        self,
-        path: str,
-        *,
-        json: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a sync POST request."""
-        return self.request_sync(
-            "POST", path, json=json, data=data, params=params, headers=headers
-        )
-
-    def put_sync(
-        self,
-        path: str,
-        *,
-        json: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a sync PUT request."""
-        return self.request_sync(
-            "PUT", path, json=json, data=data, params=params, headers=headers
-        )
-
-    def patch_sync(
-        self,
-        path: str,
-        *,
-        json: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a sync PATCH request."""
-        return self.request_sync(
-            "PATCH", path, json=json, data=data, params=params, headers=headers
-        )
-
-    def delete_sync(
-        self,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Make a sync DELETE request."""
-        return self.request_sync("DELETE", path, params=params, headers=headers)
-
-    async def close(self) -> None:
-        """Close the async HTTP client."""
-        if self._http_client:
-            await self._http_client.aclose()
-            self._http_client = None
-
-    def close_sync(self) -> None:
-        """Close the sync HTTP client."""
-        if self._sync_http_client:
-            self._sync_http_client.close()
-            self._sync_http_client = None
-
-    async def __aenter__(self) -> "Client":
-        """Async context manager entry."""
+        Returns:
+            This client.
+        """
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Async context manager exit."""
-        await self.close()
-
-    def __enter__(self) -> "Client":
-        """Sync context manager entry."""
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Sync context manager exit."""
-        self.close_sync()
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close the client on leaving the context manager."""
+        await self.aclose()
 
     def __repr__(self) -> str:
-        """Return a string representation of the client."""
-        return (
-            f"Client(base_url={self.config.base_url!r}, timeout={self.config.timeout})"
-        )
+        """Return a representation of the client, without its token."""
+        return f"{type(self).__name__}(base_url={self._base_url!r})"
+
+
+__all__ = ["Nvisy"]

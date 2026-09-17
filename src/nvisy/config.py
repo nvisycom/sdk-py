@@ -1,130 +1,110 @@
-"""Configuration module for the Nvisy SDK."""
+"""Configuration for the Nvisy SDK."""
 
-import contextlib
+from __future__ import annotations
+
 import os
 import re
-from typing import Any
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, field_validator
+from .errors import NvisyError
+
+#: Default base URL for the Nvisy API.
+DEFAULT_BASE_URL = "https://api.nvisy.com"
+
+#: Environment variable holding the API token.
+ENV_API_TOKEN = "NVISY_API_TOKEN"
+
+#: Environment variable holding a custom base URL.
+ENV_BASE_URL = "NVISY_BASE_URL"
+
+#: Environment variable holding a custom user agent.
+ENV_USER_AGENT = "NVISY_USER_AGENT"
+
+_TOKEN_PATTERN = re.compile(r"^[a-zA-Z0-9_.-]+$")
+_TOKEN_MIN_LENGTH = 10
 
 
-class ClientConfiguration(BaseModel):
-    """Configuration model for the Nvisy client.
+def default_user_agent() -> str:
+    """Build the user agent sent when the caller does not supply one.
 
-    Handles all client settings including authentication, network configuration,
-    and request parameters with proper validation.
+    Returns:
+        A user agent identifying the SDK and its version.
     """
+    from . import __version__
 
-    api_key: str = Field(..., min_length=10, description="API key for authentication")
-    base_url: str = Field(
-        default="https://api.nvisy.com", description="Base URL for the Nvisy API"
-    )
-    timeout: float = Field(
-        default=30.0, ge=1.0, le=300.0, description="Request timeout in seconds (1-300)"
-    )
-    max_retries: int = Field(
-        default=3, ge=0, le=5, description="Maximum number of retry attempts (0-5)"
-    )
-    user_agent: str | None = Field(default=None, description="Custom user agent string")
-    headers: dict[str, str] = Field(
-        default_factory=dict, description="Additional headers to send with requests"
-    )
-    debug: bool = Field(default=False, description="Enable debug mode")
+    return f"nvisy-sdk-python/{__version__}"
 
-    @field_validator("api_key")
-    @classmethod
-    def validate_api_key(cls, v: str) -> str:
-        """Validate API key format."""
-        if not re.match(r"^[a-zA-Z0-9_-]{10,}$", v):
-            raise ValueError(
-                "API key must be at least 10 characters and contain only "
-                "alphanumeric characters, underscores, and hyphens"
-            )
-        return v
 
-    @field_validator("base_url")
-    @classmethod
-    def validate_base_url(cls, v: str) -> str:
-        """Validate base URL format."""
-        parsed = urlparse(v)
-        if not parsed.scheme or not parsed.netloc:
-            raise ValueError("Base URL must be a valid HTTP/HTTPS URL")
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError("Base URL must use HTTP or HTTPS protocol")
-        return v.rstrip("/")
+def validate_api_token(api_token: str) -> str:
+    """Validate an API token.
 
-    @field_validator("user_agent")
-    @classmethod
-    def validate_user_agent(cls, v: str | None) -> str | None:
-        """Validate user agent string."""
-        if v is not None and len(v.strip()) == 0:
-            return None
-        return v
+    Args:
+        api_token: The token to validate.
 
-    def get_default_user_agent(self) -> str:
-        """Get the default user agent string."""
-        from . import __version__
+    Returns:
+        The token, stripped of surrounding whitespace.
 
-        return f"nvisy-sdk-python/{__version__}"
+    Raises:
+        NvisyError: If the token is empty, too short, or malformed.
+    """
+    if not isinstance(api_token, str) or not api_token.strip():
+        raise NvisyError("API token must be a non-empty string")
 
-    def get_effective_user_agent(self) -> str:
-        """Get the effective user agent (custom or default)."""
-        return self.user_agent or self.get_default_user_agent()
+    token = api_token.strip()
+    if len(token) < _TOKEN_MIN_LENGTH:
+        raise NvisyError(f"API token must be at least {_TOKEN_MIN_LENGTH} characters")
+    if not _TOKEN_PATTERN.match(token):
+        raise NvisyError("API token contains invalid characters")
 
-    def get_effective_headers(self) -> dict[str, str]:
-        """Get the effective headers including authentication and user agent."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": self.get_effective_user_agent(),
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            **self.headers,
-        }
-        return headers
+    return token
 
-    @classmethod
-    def from_environment(cls) -> "ClientConfiguration":
-        """Create configuration from environment variables.
 
-        Reads configuration from these environment variables:
-        - NVISY_API_TOKEN: API key (required)
-        - NVISY_BASE_URL: Base URL
-        - NVISY_MAX_TIMEOUT: Timeout in milliseconds
-        - NVISY_MAX_RETRIES: Maximum retries
-        - NVISY_USER_AGENT: User agent
-        - DEBUG: Enable debug mode
+def validate_base_url(base_url: str) -> str:
+    """Validate a base URL.
 
-        Returns:
-            ClientConfiguration instance
+    Args:
+        base_url: The URL to validate.
 
-        Raises:
-            ValueError: If required environment variables are missing
-        """
-        api_key = os.getenv("NVISY_API_TOKEN")
-        if not api_key:
-            raise ValueError(
-                "API key is required. Set NVISY_API_TOKEN environment variable."
-            )
+    Returns:
+        The URL without a trailing slash.
 
-        config_dict: dict[str, Any] = {"api_key": api_key}
+    Raises:
+        NvisyError: If the URL is not a valid HTTP or HTTPS URL.
+    """
+    parsed = urlparse(base_url)
+    if not parsed.scheme or not parsed.netloc:
+        raise NvisyError("Base URL must be a valid HTTP/HTTPS URL")
+    if parsed.scheme not in ("http", "https"):
+        raise NvisyError("Base URL must use HTTP or HTTPS protocol")
 
-        if base_url := os.getenv("NVISY_BASE_URL"):
-            config_dict["base_url"] = base_url
+    return base_url.rstrip("/")
 
-        if timeout_ms := os.getenv("NVISY_MAX_TIMEOUT"):
-            with contextlib.suppress(ValueError, TypeError):
-                timeout_seconds = float(timeout_ms) / 1000.0
-                config_dict["timeout"] = timeout_seconds
 
-        if max_retries := os.getenv("NVISY_MAX_RETRIES"):
-            with contextlib.suppress(ValueError, TypeError):
-                config_dict["max_retries"] = int(max_retries)
+def api_token_from_environment() -> str:
+    """Read the API token from the environment.
 
-        if user_agent := os.getenv("NVISY_USER_AGENT"):
-            config_dict["user_agent"] = user_agent
+    Returns:
+        The token held in `NVISY_API_TOKEN`.
 
-        if os.getenv("DEBUG", "").lower() in ("true", "1", "yes"):
-            config_dict["debug"] = True
+    Raises:
+        NvisyError: If the variable is unset or empty.
+    """
+    api_token = os.getenv(ENV_API_TOKEN)
+    if not api_token:
+        raise NvisyError(
+            f"API token is required. Set the {ENV_API_TOKEN} environment variable."
+        )
 
-        return cls(**config_dict)
+    return api_token
+
+
+__all__ = [
+    "DEFAULT_BASE_URL",
+    "ENV_API_TOKEN",
+    "ENV_BASE_URL",
+    "ENV_USER_AGENT",
+    "api_token_from_environment",
+    "default_user_agent",
+    "validate_api_token",
+    "validate_base_url",
+]

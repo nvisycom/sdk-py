@@ -1,326 +1,162 @@
-"""Error classes for the Nvisy SDK."""
+"""Error classes for the Nvisy SDK.
 
-from typing import Any
+The hierarchy is deliberately flat:
 
+- `NvisyError` — base class for every SDK error, and what a network failure or
+  a misconfiguration is raised as.
+- `NvisyApiError` — an error response from the API, carrying the HTTP status.
 
-class ErrorResponse:
-    """Error response structure from server."""
+Catch `NvisyError` to handle anything the SDK raises; catch `NvisyApiError`
+when the HTTP status or the API's error type matters.
+"""
 
-    def __init__(self, name: str, message: str, context: str = "") -> None:
-        """Initialize error response.
-
-        Args:
-            name: Error type/name
-            message: Human-readable error message
-            context: Additional error context
-        """
-        self.name = name
-        self.message = message
-        self.context = context
-
-    def to_dict(self) -> dict[str, str]:
-        """Convert to dictionary representation."""
-        return {
-            "name": self.name,
-            "message": self.message,
-            "context": self.context,
-        }
+from __future__ import annotations
 
 
-class ClientError(Exception):
-    """Base error class for all Nvisy SDK errors."""
+class NvisyError(Exception):
+    """Base class for all Nvisy SDK errors.
+
+    Raised directly for configuration problems and network failures — the
+    cases where no HTTP response came back to describe what went wrong.
+    """
 
     def __init__(self, message: str) -> None:
         """Initialize the error.
 
         Args:
-            message: Human-readable error message
+            message: Human-readable error message.
         """
         super().__init__(message)
         self.message = message
 
-    def to_dict(self) -> dict[str, str]:
-        """Convert error to dictionary representation."""
-        return {
-            "name": self.__class__.__name__,
-            "message": self.message,
-            "context": "",
-        }
-
     def __str__(self) -> str:
-        """Return string representation of the error."""
+        """Return the error message."""
         return self.message
 
     def __repr__(self) -> str:
-        """Return detailed representation of the error."""
-        return f"{self.__class__.__name__}({self.message!r})"
+        """Return a detailed representation of the error."""
+        return f"{type(self).__name__}({self.message!r})"
 
 
-class ConfigError(ClientError):
-    """Configuration error - thrown when client configuration is invalid."""
+class NvisyApiError(NvisyError):
+    """An error response returned by the API.
 
-    def __init__(
-        self,
-        message: str,
-        *,
-        field: str | None = None,
-        reason: str | None = None,
-    ) -> None:
-        """Initialize configuration error.
+    The API reports errors as a name identifying the kind of failure and a
+    message safe to show an end user. Both are exposed here, alongside the
+    HTTP status code.
 
-        Args:
-            message: Error message
-            field: Field that caused the error (for validation errors)
-            reason: Reason why the configuration is invalid
-        """
-        super().__init__(message)
-        self.field = field
-        self.reason = reason
+    Note that `error_name` is the API's identifier (for example
+    `"ValidationError"`), which is distinct from this class's own name.
 
-    @classmethod
-    def missing_api_key(cls) -> "ConfigError":
-        """Create error for missing API key."""
-        return cls(
-            "API key is required",
-            field="api_key",
-            reason="API key must be provided in configuration",
-        )
-
-    @classmethod
-    def invalid_field(cls, field: str, reason: str) -> "ConfigError":
-        """Create error for invalid configuration field."""
-        return cls(
-            f"Invalid configuration for {field}: {reason}",
-            field=field,
-            reason=reason,
-        )
-
-    @classmethod
-    def missing_field(cls, field: str) -> "ConfigError":
-        """Create error for missing required field."""
-        return cls(
-            f"Missing required configuration field: {field}",
-            field=field,
-            reason="This field is required",
-        )
-
-    def to_dict(self) -> dict[str, str]:
-        """Convert error to dictionary representation."""
-        context = ""
-        if self.field or self.reason:
-            context = f"field: {self.field}, reason: {self.reason}"
-
-        return {
-            "name": self.__class__.__name__,
-            "message": self.message,
-            "context": context,
-        }
-
-
-class NetworkError(ClientError):
-    """Network error - thrown when network requests fail."""
-
-    def __init__(self, message: str, cause: Exception | None = None) -> None:
-        """Initialize network error.
-
-        Args:
-            message: Error message
-            cause: Original error that caused this network error
-        """
-        super().__init__(message)
-        self.cause = cause
-
-    @classmethod
-    def connection(cls, message: str, cause: Exception | None = None) -> "NetworkError":
-        """Create error for network/connection issues."""
-        return cls(message, cause=cause)
-
-    @classmethod
-    def timeout(cls, timeout_ms: int) -> "NetworkError":
-        """Create error for request timeout."""
-        return cls(f"Request timed out after {timeout_ms}ms")
-
-    @classmethod
-    def aborted(cls) -> "NetworkError":
-        """Create error for aborted request."""
-        return cls("Request was aborted")
-
-    @classmethod
-    def dns_resolution(cls, hostname: str) -> "NetworkError":
-        """Create error for DNS resolution failure."""
-        return cls(f"Failed to resolve hostname: {hostname}")
-
-    def to_dict(self) -> dict[str, str]:
-        """Convert error to dictionary representation."""
-        context = ""
-        if self.cause:
-            context = f"cause: {self.cause!s}"
-
-        return {
-            "name": self.__class__.__name__,
-            "message": self.message,
-            "context": context,
-        }
-
-
-class ApiError(ClientError):
-    """API error - thrown when server responds with an error."""
+    Example:
+        ```python
+        try:
+            await nvisy.account.get_account()
+        except NvisyApiError as error:
+            print(error.status_code, error.error_name, error.message)
+            if error.is_retryable():
+                ...
+        ```
+    """
 
     def __init__(
         self,
         message: str,
         status_code: int,
         *,
-        error_response: ErrorResponse | None = None,
+        error_name: str,
         request_id: str | None = None,
     ) -> None:
-        """Initialize API error.
+        """Initialize the error.
 
         Args:
-            message: Error message
-            status_code: HTTP status code
-            error_response: Error response from server
-            request_id: Request ID for debugging
+            message: Human-readable message from the API.
+            status_code: HTTP status code of the response.
+            error_name: The API's error type identifier.
+            request_id: Correlation id, when the response carried one.
         """
         super().__init__(message)
         self.status_code = status_code
-        self.error_response = error_response
+        self.error_name = error_name
         self.request_id = request_id
 
     @classmethod
     def from_response(
         cls,
         status_code: int,
-        status_text: str,
-        error_data: dict[str, Any] | None = None,
+        reason_phrase: str,
+        payload: object = None,
         request_id: str | None = None,
-    ) -> "ApiError":
-        """Create error from HTTP response.
+    ) -> NvisyApiError:
+        """Build an error from a response body.
+
+        Falls back to the HTTP status line when the body is missing or is not
+        the documented `{name, message}` shape — an error response is the
+        least reliable thing to assume well-formed.
 
         Args:
-            status_code: HTTP status code
-            status_text: HTTP status text
-            error_data: Error data from response
-            request_id: Request ID for tracking
-        """
-        message = (
-            error_data.get("message", f"HTTP {status_code}: {status_text}")
-            if error_data
-            else f"HTTP {status_code}: {status_text}"
-        )
+            status_code: HTTP status code of the response.
+            reason_phrase: HTTP reason phrase, used when the body says nothing.
+            payload: Decoded response body, if it parsed as JSON.
+            request_id: Correlation id, when the response carried one.
 
-        error_response = None
-        if error_data:
-            error_response = ErrorResponse(
-                name=error_data.get("name", "ApiError"),
-                message=message,
-                context=error_data.get("context", ""),
-            )
+        Returns:
+            The corresponding error.
+        """
+        fallback = f"HTTP {status_code}: {reason_phrase}".rstrip(": ")
+
+        name = "ApiError"
+        message = fallback
+        if isinstance(payload, dict):
+            raw_message = payload.get("message")
+            if isinstance(raw_message, str) and raw_message:
+                message = raw_message
+            raw_name = payload.get("name")
+            if isinstance(raw_name, str) and raw_name:
+                name = raw_name
 
         return cls(
             message,
             status_code,
-            error_response=error_response,
+            error_name=name,
             request_id=request_id,
         )
 
-    @classmethod
-    def rate_limited(
-        cls,
-        retry_after: int | None = None,
-        request_id: str | None = None,
-    ) -> "ApiError":
-        """Create error for rate limiting.
-
-        Args:
-            retry_after: Seconds to wait before retrying
-            request_id: Request ID for tracking
-        """
-        message = (
-            f"Rate limited. Retry after {retry_after} seconds"
-            if retry_after
-            else "Rate limited"
-        )
-
-        error_response = ErrorResponse(
-            name="RateLimitError",
-            message=message,
-            context=f"retryAfter: {retry_after}" if retry_after else "",
-        )
-
-        return cls(message, 429, error_response=error_response, request_id=request_id)
-
     def is_client_error(self) -> bool:
-        """Check if error is a client error (4xx)."""
+        """Report whether the request itself was at fault.
+
+        Returns:
+            True for a 4xx status.
+        """
         return 400 <= self.status_code < 500
 
     def is_server_error(self) -> bool:
-        """Check if error is a server error (5xx)."""
+        """Report whether the API failed to serve the request.
+
+        Returns:
+            True for a 5xx status.
+        """
         return self.status_code >= 500
 
     def is_retryable(self) -> bool:
-        """Check if error is retryable based on HTTP status."""
+        """Report whether the request may succeed if sent again.
+
+        The SDK never retries on its own; this only says when doing so is
+        worthwhile.
+
+        Returns:
+            True for a server error, a request timeout, or rate limiting.
+        """
         return (
-            self.status_code >= 500  # Server errors
-            or self.status_code == 408  # Request timeout
-            or self.status_code == 429  # Rate limited
+            self.is_server_error() or self.status_code == 408 or self.status_code == 429
         )
 
-    def get_retry_delay(self) -> float | None:
-        """Get retry delay in seconds (returns None if not retryable)."""
-        if not self.is_retryable():
-            return None
-
-        # For rate limiting, check if we have retry-after info
-        if (
-            self.status_code == 429
-            and self.error_response
-            and self.error_response.context
-        ):
-            import re
-
-            match = re.search(r"retryAfter: (\d+)", self.error_response.context)
-            if match:
-                return float(match.group(1))
-
-        # Default delays based on error type
-        if self.status_code >= 500:
-            return 1.0  # 1 second for server errors
-
-        return 1.0  # Default 1 second
-
-    def to_dict(self) -> dict[str, str]:
-        """Convert error to dictionary representation."""
-        context_parts = [f"statusCode: {self.status_code}"]
-
-        if self.request_id:
-            context_parts.append(f"requestId: {self.request_id}")
-
-        if self.error_response:
-            import json
-
-            context_parts.append(
-                f"errorResponse: {json.dumps(self.error_response.to_dict())}"
-            )
-
-        return {
-            "name": self.__class__.__name__,
-            "message": self.message,
-            "context": ", ".join(context_parts),
-        }
-
-    def __str__(self) -> str:
-        """Return string representation of the error."""
-        parts = [self.message, f"Status: {self.status_code}"]
-        if self.request_id:
-            parts.append(f"Request ID: {self.request_id}")
-        return " | ".join(parts)
+    def __repr__(self) -> str:
+        """Return a detailed representation of the error."""
+        return (
+            f"{type(self).__name__}({self.message!r}, "
+            f"status_code={self.status_code}, error_name={self.error_name!r})"
+        )
 
 
-__all__ = [
-    "ClientError",
-    "ConfigError",
-    "NetworkError",
-    "ApiError",
-    "ErrorResponse",
-]
+__all__ = ["NvisyApiError", "NvisyError"]

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nvisy-sdk"
-version = "0.1.0"
-description = "Python SDK for Nvisy API"
+version = "0.2.0"
+description = "Async Python SDK for the Nvisy document processing platform"
 readme = "README.md"
 license = { file = "LICENSE.txt" }
 authors = [
@@ -43,10 +43,7 @@ dev = [
     "twine>=4.0.0",
     "build>=0.10.0",
     "datamodel-code-generator>=0.25.0",
-    "httpx-oauth>=0.10.0",
-    "jsonschema>=4.0.0",
     "bandit>=1.7.0",
-    "safety>=2.0.0",
     "respx>=0.20.0",
 ]
 docs = [
@@ -102,6 +99,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["nvisy"]
+# conftest is imported by name, since tests/ is not a package.
+known-local-folder = ["conftest"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel"]
