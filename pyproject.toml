@@ -172,8 +172,9 @@ extra_checks = false
 
 [tool.bandit]
 exclude_dirs = ["tests", "build", "dist"]
-skips = ["B101", "B601"]
-tests = ["B201", "B301", "B401", "B501", "B601", "B602", "B603", "B604", "B605", "B606", "B607", "B608", "B609", "B610", "B611", "B701", "B702", "B703"]
+# B101 is assert, which pytest relies on. Listing an explicit `tests`
+# allowlist as well is what bandit rejects as a non-exclusive set.
+skips = ["B101"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

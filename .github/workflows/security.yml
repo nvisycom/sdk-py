@@ -1,0 +1,127 @@
+name: Security
+
+env:
+  PYTHON_VERSION: "3.11"
+
+on:
+  push:
+    branches:
+      - "main"
+      - "develop"
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/security.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/security.yml"
+  schedule:
+    # Weekly, so newly disclosed advisories surface without a push.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+
+      # Gate on the shipped tree; dev-tooling advisories never reach consumers.
+      # The lockfile is already fully resolved, so audit it as pinned rather
+      # than letting pip-audit build a throwaway environment to re-resolve in.
+      - name: Audit runtime dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt >requirements.txt
+          uv tool run pip-audit \
+            --requirement requirements.txt \
+            --no-deps \
+            --disable-pip \
+            --strict
+
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      # The generated datatypes are declarations; bandit is configured to skip
+      # tests and build output in pyproject.toml.
+      - name: Run bandit
+        run: uv run bandit -c pyproject.toml -r src --severity-level medium
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    # Higher than the rest: CodeQL analysis time scales with the codebase.
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: "python"
+          queries: security-and-quality
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:python"
