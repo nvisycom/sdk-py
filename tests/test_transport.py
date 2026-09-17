@@ -66,6 +66,46 @@ class TestContentType:
         assert content_type.startswith("multipart/form-data")
         assert "boundary=" in content_type
 
+    async def test_caller_content_type_cannot_break_an_upload(self, requests):
+        """A caller's Content-Type never labels a multipart body.
+
+        httpx generates the multipart type and its boundary from the body, but
+        a client-level header outranks that, so an upload would go out labelled
+        as something it is not.
+        """
+
+        def recording(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, json={})
+
+        client = Nvisy(
+            api_token=API_TOKEN,
+            headers={"Content-Type": "application/json", "X-Custom": "keep-me"},
+            transport=httpx.MockTransport(recording),
+        )
+        async with client:
+            await client.workspaces.upload_avatar("ws-1", b"image-bytes")
+
+        assert requests[0].headers["content-type"].startswith("multipart/form-data")
+
+    async def test_other_caller_headers_survive(self, requests):
+        """Dropping Content-Type leaves the caller's other headers alone."""
+
+        def recording(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, json={})
+
+        client = Nvisy(
+            api_token=API_TOKEN,
+            headers={"Content-Type": "application/json", "X-Custom": "keep-me"},
+            transport=httpx.MockTransport(recording),
+        )
+        async with client:
+            await client.status.check_liveness()
+
+        assert requests[0].headers["x-custom"] == "keep-me"
+        assert requests[0].headers["authorization"] == f"Bearer {API_TOKEN}"
+
     async def test_multipart_body_is_encoded(self, make_client, requests):
         """The uploaded bytes reach the wire inside the multipart body."""
         async with make_client(responds(200, json={})) as client:

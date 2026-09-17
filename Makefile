@@ -228,9 +228,10 @@ update:
 .PHONY: security
 security:
 	$(call log,Auditing runtime dependencies...)
-	@uv export --frozen --no-dev --no-emit-project --format requirements-txt >requirements.txt
-	@uv tool run pip-audit --requirement requirements.txt --no-deps --disable-pip --strict
-	@rm -f requirements.txt
+	@set -e; export_file=$$(mktemp); \
+		trap 'rm -f "$$export_file"' EXIT; \
+		uv export --frozen --no-dev --no-emit-project --format requirements-txt >"$$export_file"; \
+		uv tool run pip-audit --requirement "$$export_file" --no-deps --disable-pip --strict
 	$(call log,Running bandit...)
 	@uv run bandit -c pyproject.toml -r src --severity-level medium
 	$(call log,Security checks complete)

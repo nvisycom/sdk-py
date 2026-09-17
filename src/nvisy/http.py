@@ -125,14 +125,18 @@ def create_http_client(
     Returns:
         A configured client.
     """
-    # No blanket Content-Type: httpx sets it from the body it is given, which
-    # is the only way a multipart upload gets its boundary.
+    # Content-Type is deliberately never set on the client, and a caller's is
+    # dropped. httpx derives it from each body, which is the only way a
+    # multipart upload gets its boundary; a client-level value outranks that
+    # and would label every upload with a type its body does not have.
     default_headers = {
         "Accept": "application/json",
         "User-Agent": user_agent or default_user_agent(),
     }
     if headers:
-        default_headers.update(headers)
+        default_headers.update(
+            {k: v for k, v in headers.items() if k.lower() != "content-type"}
+        )
 
     # Applied last, so the token this client was built with is the one it
     # sends. A stale Authorization header carried over from another client
@@ -166,4 +170,8 @@ def wrap_network_errors(error: httpx.HTTPError) -> NvisyError:
     return NvisyError(str(error) or "An unknown network error occurred")
 
 
-__all__ = ["REQUEST_ID_HEADER", "create_http_client", "wrap_network_errors"]
+__all__ = [
+    "REQUEST_ID_HEADER",
+    "create_http_client",
+    "wrap_network_errors",
+]

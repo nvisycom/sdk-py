@@ -75,7 +75,9 @@ class Nvisy:
             api_token: Token to authenticate with.
             base_url: Base URL for the API.
             headers: Extra headers sent with every request, merged over the
-                defaults so any of them can be overridden.
+                defaults so any of them can be overridden. `Content-Type` is
+                the exception: httpx derives it from each body, which is what
+                gives a multipart upload its boundary.
             user_agent: Custom user agent; defaults to one naming the SDK.
             with_logging: Whether to log requests and responses to the `nvisy`
                 logger at debug level.
