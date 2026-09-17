@@ -5,7 +5,7 @@ import os
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from .config import ClientConfiguration
-from .exceptions import NvisyConfigurationError
+from .errors import ConfigError
 
 if TYPE_CHECKING:
     from .client import Client
@@ -176,12 +176,10 @@ class ClientBuilder:
             Configured Client instance
 
         Raises:
-            NvisyConfigurationError: If API key is not provided
+            ConfigError: If API key is not provided
         """
         if not self._api_key:
-            raise NvisyConfigurationError(
-                "API key is required. Set it via with_api_key() or NVISY_API_TOKEN environment variable."
-            )
+            raise ConfigError.missing_api_key()
 
         config = ClientConfiguration(
             api_key=self._api_key,

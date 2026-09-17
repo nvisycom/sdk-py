@@ -7,12 +7,13 @@ import pytest
 
 import nvisy
 from nvisy import (
+    ApiError,
     Client,
     ClientBuilder,
     ClientConfiguration,
-    NvisyAPIError,
-    NvisyAuthenticationError,
-    NvisyConfigurationError,
+    ClientError,
+    ConfigError,
+    NetworkError,
 )
 
 
@@ -158,7 +159,7 @@ class TestClientBuilder:
         """Test building without API key raises error."""
         builder = ClientBuilder()
 
-        with pytest.raises(NvisyConfigurationError, match="API key is required"):
+        with pytest.raises(ConfigError, match="API key is required"):
             builder.build()
 
     def test_multiple_headers(self):
@@ -247,26 +248,72 @@ class TestExceptions:
 
     def test_exception_imports(self):
         """Test that exceptions can be imported."""
-        from nvisy import (
-            NvisyAPIError,
-            NvisyAuthenticationError,
-            NvisyConfigurationError,
-            NvisyError,
-        )
-
-        assert issubclass(NvisyAPIError, NvisyError)
-        assert issubclass(NvisyAuthenticationError, NvisyAPIError)
-        assert issubclass(NvisyConfigurationError, NvisyError)
+        assert issubclass(ApiError, ClientError)
+        assert issubclass(ConfigError, ClientError)
+        assert issubclass(NetworkError, ClientError)
 
     def test_exception_hierarchy(self):
         """Test exception hierarchy works correctly."""
         try:
-            raise NvisyAuthenticationError("Auth failed")
-        except NvisyAPIError:
+            raise ApiError("API failed", 500)
+        except ClientError:
             # Should catch parent class
             pass
         except Exception:
             pytest.fail("Exception hierarchy not working correctly")
+
+    def test_config_error_factory_methods(self):
+        """Test ConfigError factory methods."""
+        # Test missing_api_key
+        error = ConfigError.missing_api_key()
+        assert "API key is required" in str(error)
+        assert error.field == "api_key"
+
+        # Test invalid_field
+        error = ConfigError.invalid_field("timeout", "must be positive")
+        assert "timeout" in str(error)
+        assert error.field == "timeout"
+
+        # Test missing_field
+        error = ConfigError.missing_field("base_url")
+        assert "base_url" in str(error)
+
+    def test_network_error_factory_methods(self):
+        """Test NetworkError factory methods."""
+        # Test timeout
+        error = NetworkError.timeout(5000)
+        assert "5000" in str(error)
+
+        # Test connection
+        error = NetworkError.connection("Failed to connect")
+        assert "Failed to connect" in str(error)
+
+        # Test aborted
+        error = NetworkError.aborted()
+        assert "aborted" in str(error).lower()
+
+        # Test DNS resolution
+        error = NetworkError.dns_resolution("api.example.com")
+        assert "api.example.com" in str(error)
+
+    def test_api_error_methods(self):
+        """Test ApiError methods."""
+        # Test is_client_error
+        error = ApiError("Not found", 404)
+        assert error.is_client_error()
+        assert not error.is_server_error()
+
+        # Test is_server_error
+        error = ApiError("Server error", 500)
+        assert error.is_server_error()
+        assert not error.is_client_error()
+
+        # Test is_retryable
+        error = ApiError("Timeout", 408)
+        assert error.is_retryable()
+
+        error = ApiError("Bad request", 400)
+        assert not error.is_retryable()
 
 
 class TestModuleLevel:

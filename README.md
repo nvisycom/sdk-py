@@ -85,7 +85,7 @@ Set these environment variables:
 | `NVISY_BASE_URL`    | Custom API endpoint URL          | No       |
 | `NVISY_MAX_TIMEOUT` | Request timeout in milliseconds  | No       |
 | `NVISY_MAX_RETRIES` | Maximum number of retry attempts | No       |
-| `NVISY_USER_AGENT`  | Custom user agent string        | No       |
+| `NVISY_USER_AGENT`  | Custom user agent string         | No       |
 
 ### Async Usage
 
@@ -197,11 +197,12 @@ make build    # Verify build works
 The SDK provides access to the following services:
 
 - **Documents** - Document upload, management, and processing
-- **Members** - Team member invitation and management  
+- **Members** - Team member invitation and management
 - **Integrations** - Third-party service integrations
 - **Status** - API health and status monitoring
 
-*Note: Service implementations are coming soon. Currently, use the base HTTP methods (`get`, `post`, etc.) to interact with API endpoints.*
+_Note: Service implementations are coming soon. Currently, use the base HTTP
+methods (`get`, `post`, etc.) to interact with API endpoints._
 
 ## Changelog
 

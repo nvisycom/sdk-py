@@ -24,7 +24,8 @@ and this project adheres to
 - `Client` class for interacting with the Nvisy document redaction API
 - `ClientBuilder` class for fluent configuration building with method chaining
 - `ClientConfiguration` class for configuration management and validation
-- Comprehensive error handling with `NvisyError` hierarchy and specialized exceptions
+- Comprehensive error handling with `NvisyError` hierarchy and specialized
+  exceptions
 - Configuration management with environment variable support
 - Full type hints and mypy compatibility for type safety
 - Both async and sync HTTP request methods

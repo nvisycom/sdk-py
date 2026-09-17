@@ -8,11 +8,7 @@ from urllib.parse import urljoin
 import httpx
 
 from .config import ClientConfiguration
-from .exceptions import (
-    NvisyConnectionError,
-    NvisyTimeoutError,
-    create_api_error_from_response,
-)
+from .errors import ApiError, NetworkError
 
 if TYPE_CHECKING:
     from .builder import ClientBuilder
@@ -88,7 +84,7 @@ class Client:
             )
         return self._sync_http_client
 
-    async def request(
+    async def request(  # noqa: PLR0912
         self,
         method: str,
         path: str,
@@ -112,7 +108,8 @@ class Client:
             Response data
 
         Raises:
-            NvisyError: For various error conditions
+            ApiError: For API errors
+            NetworkError: For network/connection errors
         """
         client = self._get_async_client()
         url = (
@@ -141,9 +138,8 @@ class Client:
 
                 # Handle successful responses
                 if 200 <= response.status_code < 300:
-                    if response.headers.get("content-type", "").startswith(
-                        "application/json"
-                    ):
+                    content_type = response.headers.get("content-type", "")
+                    if content_type.startswith("application/json"):
                         return response.json()
                     return {"data": response.text}
 
@@ -154,19 +150,24 @@ class Client:
                     error_data = {"message": response.text or "Unknown error"}
 
                 request_id = response.headers.get("x-request-id")
-                raise create_api_error_from_response(
-                    response.status_code, error_data, request_id
+                raise ApiError.from_response(
+                    response.status_code,
+                    response.reason_phrase,
+                    error_data,
+                    request_id,
                 )
 
-            except httpx.TimeoutException:
-                last_exception = NvisyTimeoutError(
-                    f"Request timed out after {self.config.timeout}s",
-                    timeout_duration=self.config.timeout,
-                )
-            except httpx.ConnectError:
-                last_exception = NvisyConnectionError("Failed to connect to API")
-            except httpx.HTTPError:
-                last_exception = NvisyConnectionError("HTTP error occurred")
+            except httpx.TimeoutException as e:
+                timeout_ms = int(self.config.timeout * 1000)
+                last_exception = NetworkError.timeout(timeout_ms)
+                last_exception.cause = e
+            except httpx.ConnectError as e:
+                last_exception = NetworkError.connection("Failed to connect to API", e)
+            except httpx.HTTPError as e:
+                last_exception = NetworkError.connection("HTTP error occurred", e)
+            except ApiError:
+                # Re-raise API errors immediately without retry
+                raise
 
             attempt += 1
             if attempt <= self.config.max_retries and last_exception:
@@ -175,9 +176,9 @@ class Client:
 
         if last_exception:
             raise last_exception
-        raise NvisyConnectionError("Request failed after all retry attempts")
+        raise NetworkError.connection("Request failed after all retry attempts")
 
-    def request_sync(
+    def request_sync(  # noqa: PLR0912
         self,
         method: str,
         path: str,
@@ -201,7 +202,8 @@ class Client:
             Response data
 
         Raises:
-            NvisyError: For various error conditions
+            ApiError: For API errors
+            NetworkError: For network/connection errors
         """
         client = self._get_sync_client()
         url = (
@@ -230,9 +232,8 @@ class Client:
 
                 # Handle successful responses
                 if 200 <= response.status_code < 300:
-                    if response.headers.get("content-type", "").startswith(
-                        "application/json"
-                    ):
+                    content_type = response.headers.get("content-type", "")
+                    if content_type.startswith("application/json"):
                         return response.json()
                     return {"data": response.text}
 
@@ -243,19 +244,24 @@ class Client:
                     error_data = {"message": response.text or "Unknown error"}
 
                 request_id = response.headers.get("x-request-id")
-                raise create_api_error_from_response(
-                    response.status_code, error_data, request_id
+                raise ApiError.from_response(
+                    response.status_code,
+                    response.reason_phrase,
+                    error_data,
+                    request_id,
                 )
 
-            except httpx.TimeoutException:
-                last_exception = NvisyTimeoutError(
-                    f"Request timed out after {self.config.timeout}s",
-                    timeout_duration=self.config.timeout,
-                )
-            except httpx.ConnectError:
-                last_exception = NvisyConnectionError("Failed to connect to API")
-            except httpx.HTTPError:
-                last_exception = NvisyConnectionError("HTTP error occurred")
+            except httpx.TimeoutException as e:
+                timeout_ms = int(self.config.timeout * 1000)
+                last_exception = NetworkError.timeout(timeout_ms)
+                last_exception.cause = e
+            except httpx.ConnectError as e:
+                last_exception = NetworkError.connection("Failed to connect to API", e)
+            except httpx.HTTPError as e:
+                last_exception = NetworkError.connection("HTTP error occurred", e)
+            except ApiError:
+                # Re-raise API errors immediately without retry
+                raise
 
             attempt += 1
             if attempt <= self.config.max_retries and last_exception:
@@ -264,7 +270,7 @@ class Client:
 
         if last_exception:
             raise last_exception
-        raise NvisyConnectionError("Request failed after all retry attempts")
+        raise NetworkError.connection("Request failed after all retry attempts")
 
     # Convenience methods for common HTTP verbs
     async def get(

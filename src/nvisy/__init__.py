@@ -10,21 +10,8 @@ from .builder import ClientBuilder
 from .client import Client
 from .config import ClientConfiguration
 
-# Import exceptions
-from .exceptions import (
-    NvisyAPIError,
-    NvisyAuthenticationError,
-    NvisyAuthorizationError,
-    NvisyConfigurationError,
-    NvisyConnectionError,
-    NvisyError,
-    NvisyNotFoundError,
-    NvisyParsingError,
-    NvisyRateLimitError,
-    NvisyServerError,
-    NvisyTimeoutError,
-    NvisyValidationError,
-)
+# Import errors
+from .errors import ApiError, ClientError, ConfigError, ErrorResponse, NetworkError
 
 __all__ = [
     "__version__",
@@ -32,17 +19,10 @@ __all__ = [
     "Client",
     "ClientBuilder",
     "ClientConfiguration",
-    # Exceptions
-    "NvisyError",
-    "NvisyAPIError",
-    "NvisyAuthenticationError",
-    "NvisyAuthorizationError",
-    "NvisyNotFoundError",
-    "NvisyValidationError",
-    "NvisyRateLimitError",
-    "NvisyServerError",
-    "NvisyTimeoutError",
-    "NvisyConnectionError",
-    "NvisyConfigurationError",
-    "NvisyParsingError",
+    # Errors
+    "ClientError",
+    "ConfigError",
+    "NetworkError",
+    "ApiError",
+    "ErrorResponse",
 ]

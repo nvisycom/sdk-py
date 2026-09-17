@@ -86,4 +86,5 @@ make build    # Verify build works
 
 ## License
 
-By contributing, you agree your contributions will be licensed under the MIT License.
+By contributing, you agree your contributions will be licensed under the MIT
+License.
