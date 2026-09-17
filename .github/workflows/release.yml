@@ -188,6 +188,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.validate.outputs.tag }}
+          # On a manual dispatch the tag does not exist yet, and GitHub would
+          # cut it from the default branch rather than the commit just built.
+          target_commitish: ${{ github.sha }}
           name: Release ${{ needs.validate.outputs.tag }}
           files: dist/*
           generate_release_notes: true

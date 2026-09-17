@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 import httpx
 from pydantic import BaseModel
 
-from ..http import SKIP_RAISE, wrap_network_errors
+from ..http import ALLOWED_STATUSES, wrap_network_errors
 from ..pagination import AsyncPaginator, Page
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Collection, Mapping
 
 PageT = TypeVar("PageT", bound=Page[Any])
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -36,7 +36,7 @@ class Service:
         params: Mapping[str, Any] | None = None,
         json: Any = None,
         files: Any = None,
-        raise_for_error: bool = True,
+        allow_statuses: Collection[int] | None = None,
     ) -> httpx.Response:
         """Issue a request, letting the response hook raise on failure.
 
@@ -46,25 +46,23 @@ class Service:
             params: Query parameters; keys with a `None` value are dropped.
             json: JSON body to send.
             files: Multipart payload to send.
-            raise_for_error: Whether an error status should raise. The health
-                endpoints set this to False, since they describe an unhealthy
-                server in the body of a 503 rather than failing.
+            allow_statuses: Error statuses whose body should be returned
+                rather than raised. The health endpoints pass `{503}`, since
+                they describe an unhealthy server in the body of one; every
+                other status still raises.
 
         Returns:
             The response.
         """
         request: dict[str, Any] = {}
-        if not raise_for_error:
-            request["extensions"] = {SKIP_RAISE: True}
+        if allow_statuses:
+            request["extensions"] = {ALLOWED_STATUSES: frozenset(allow_statuses)}
         if params is not None:
             request["params"] = _clean_params(params)
         if json is not None:
             request["json"] = json
         if files is not None:
-            # httpx sets the multipart boundary itself, which it can only do
-            # when the JSON default is out of the way.
             request["files"] = files
-            request["headers"] = {"Content-Type": None}
 
         try:
             return await self._http.request(method, path, **request)

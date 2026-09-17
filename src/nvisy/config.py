@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 from urllib.parse import urlparse
 
@@ -81,30 +80,11 @@ def validate_base_url(base_url: str) -> str:
     return base_url.rstrip("/")
 
 
-def api_token_from_environment() -> str:
-    """Read the API token from the environment.
-
-    Returns:
-        The token held in `NVISY_API_TOKEN`.
-
-    Raises:
-        NvisyError: If the variable is unset or empty.
-    """
-    api_token = os.getenv(ENV_API_TOKEN)
-    if not api_token:
-        raise NvisyError(
-            f"API token is required. Set the {ENV_API_TOKEN} environment variable."
-        )
-
-    return api_token
-
-
 __all__ = [
     "DEFAULT_BASE_URL",
     "ENV_API_TOKEN",
     "ENV_BASE_URL",
     "ENV_USER_AGENT",
-    "api_token_from_environment",
     "default_user_agent",
     "validate_api_token",
     "validate_base_url",

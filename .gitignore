@@ -38,8 +38,6 @@ docs/
 # Environment
 .env*
 .venv*
-!.env.example
-!.env.local
 
 # Logs
 logs/

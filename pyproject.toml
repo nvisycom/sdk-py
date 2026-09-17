@@ -40,17 +40,11 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "mypy>=1.0.0",
     "ruff>=0.16.0",
-    "pre-commit>=3.0.0",
     "twine>=4.0.0",
     "build>=0.10.0",
     "datamodel-code-generator>=0.25.0",
     "bandit>=1.7.0",
     "respx>=0.20.0",
-]
-docs = [
-    "mkdocs>=1.4.0",
-    "mkdocs-material>=8.0.0",
-    "mkdocstrings[python]>=0.20.0",
 ]
 
 [project.urls]

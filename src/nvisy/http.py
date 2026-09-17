@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import TYPE_CHECKING
 
 import httpx
@@ -24,9 +25,12 @@ logger = logging.getLogger("nvisy")
 #: Header carrying the correlation id, when the API sends one.
 REQUEST_ID_HEADER = "x-request-id"
 
-#: Request extension marking a request whose error status is meaningful and
+#: Request extension holding the error statuses whose body is meaningful and
 #: should reach the caller as a response rather than an exception.
-SKIP_RAISE = "nvisy_skip_raise"
+ALLOWED_STATUSES = "nvisy_allowed_statuses"
+
+#: Request extension holding when the request was sent, for the logging hook.
+START_TIME = "nvisy_start_time"
 
 
 async def _raise_for_error(response: httpx.Response) -> None:
@@ -44,7 +48,8 @@ async def _raise_for_error(response: httpx.Response) -> None:
     """
     if not response.is_error:
         return
-    if response.request.extensions.get(SKIP_RAISE):
+    allowed = response.request.extensions.get(ALLOWED_STATUSES)
+    if allowed and response.status_code in allowed:
         await response.aread()
         return
 
@@ -67,26 +72,33 @@ async def _raise_for_error(response: httpx.Response) -> None:
 
 
 async def _log_request(request: httpx.Request) -> None:
-    """Log an outgoing request.
+    """Log an outgoing request and note when it started.
 
     Args:
         request: The request about to be sent.
     """
+    request.extensions[START_TIME] = time.perf_counter()
     logger.debug("%s %s", request.method, request.url)
 
 
 async def _log_response(response: httpx.Response) -> None:
     """Log a response and how long its request took.
 
+    The duration is measured from the request hook rather than read from
+    `response.elapsed`, which is only available once the response has been
+    read or closed — and a hook runs before either.
+
     Args:
         response: The response received.
     """
+    started = response.request.extensions.get(START_TIME)
+    duration = (time.perf_counter() - started) * 1000 if started else 0.0
     logger.debug(
         "%s %s %s (%dms)",
         response.request.method,
         response.request.url.path,
         response.status_code,
-        response.elapsed.total_seconds() * 1000,
+        duration,
     )
 
 
@@ -113,14 +125,19 @@ def create_http_client(
     Returns:
         A configured client.
     """
+    # No blanket Content-Type: httpx sets it from the body it is given, which
+    # is the only way a multipart upload gets its boundary.
     default_headers = {
         "Accept": "application/json",
-        "Content-Type": "application/json",
         "User-Agent": user_agent or default_user_agent(),
-        "Authorization": f"Bearer {api_token}",
     }
     if headers:
         default_headers.update(headers)
+
+    # Applied last, so the token this client was built with is the one it
+    # sends. A stale Authorization header carried over from another client
+    # would otherwise silently outrank it.
+    default_headers["Authorization"] = f"Bearer {api_token}"
 
     hooks: dict[str, list] = {"request": [], "response": [_raise_for_error]}
     if with_logging:

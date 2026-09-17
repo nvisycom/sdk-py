@@ -34,7 +34,7 @@ help:
 	@echo "$(YELLOW)Setup:$(NC)"
 	@echo "  install       - Install dependencies with uv"
 	@echo "  install-dev   - Install development dependencies"
-	@echo "  setup         - Complete project setup (install + pre-commit)"
+	@echo "  setup         - Install development dependencies"
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  format        - Format code with ruff"
@@ -43,7 +43,6 @@ help:
 	@echo "  check         - Run all checks (format, lint, type-check)"
 	@echo "  test          - Run tests with pytest"
 	@echo "  test-cov      - Run tests with coverage report"
-	@echo "  test-watch    - Run tests in watch mode"
 	@echo ""
 	@echo "$(YELLOW)OpenAPI:$(NC)"
 	@echo "  generate       - Download spec from production and generate datatypes"
@@ -60,6 +59,7 @@ help:
 	@echo "$(YELLOW)Maintenance:$(NC)"
 	@echo "  clean         - Remove build artifacts and cache"
 	@echo "  clean-all     - Deep clean including virtual environment"
+	@echo "  security      - Audit dependencies and run static analysis"
 	@echo "  update        - Update dependencies"
 
 # Setup targets
@@ -71,12 +71,10 @@ install:
 .PHONY: install-dev
 install-dev:
 	$(call log,Installing development dependencies...)
-	uv sync --dev
+	uv sync --extra dev
 
 .PHONY: setup
 setup: install-dev
-	$(call log,Setting up pre-commit hooks...)
-	uv run pre-commit install
 	$(call log,Project setup complete!)
 
 # Code quality targets
@@ -114,11 +112,6 @@ test:
 test-cov:
 	$(call log,Running tests with coverage...)
 	uv run pytest --cov=nvisy --cov-report=term-missing --cov-report=html
-
-.PHONY: test-watch
-test-watch:
-	$(call log,Running tests in watch mode...)
-	uv run pytest --looponfail
 
 .PHONY: test-verbose
 test-verbose:
@@ -234,26 +227,13 @@ update:
 # Security checks
 .PHONY: security
 security:
-	$(call log,Running security checks...)
-	uv run bandit -r src/ -f json -o bandit-report.json || true
-	uv run safety check --json --output safety-report.json || true
-
-# Documentation
-.PHONY: docs
-docs:
-	$(call log,Building documentation...)
-	uv run mkdocs build
-
-.PHONY: docs-serve
-docs-serve:
-	$(call log,Serving documentation...)
-	uv run mkdocs serve
-
-# Pre-commit
-.PHONY: pre-commit
-pre-commit:
-	$(call log,Running pre-commit hooks...)
-	uv run pre-commit run --all-files
+	$(call log,Auditing runtime dependencies...)
+	@uv export --frozen --no-dev --no-emit-project --format requirements-txt >requirements.txt
+	@uv tool run pip-audit --requirement requirements.txt --no-deps --disable-pip --strict
+	@rm -f requirements.txt
+	$(call log,Running bandit...)
+	@uv run bandit -c pyproject.toml -r src --severity-level medium
+	$(call log,Security checks complete)
 
 # Quick development cycle
 .PHONY: dev

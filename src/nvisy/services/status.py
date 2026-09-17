@@ -16,7 +16,7 @@ class Status(Service):
             The health report, whether the server is healthy, degraded, or
             unhealthy.
         """
-        response = await self._request("GET", "/health", raise_for_error=False)
+        response = await self._request("GET", "/health", allow_statuses={503})
         return Health.model_validate(response.json())
 
     async def check_liveness(self) -> None:
@@ -33,5 +33,5 @@ class Status(Service):
         Returns:
             The health report.
         """
-        response = await self._request("GET", "/health/ready", raise_for_error=False)
+        response = await self._request("GET", "/health/ready", allow_statuses={503})
         return Health.model_validate(response.json())

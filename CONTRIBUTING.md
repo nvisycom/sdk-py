@@ -4,7 +4,7 @@ Thank you for your interest in contributing to the Nvisy Python SDK.
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.11 or higher
 - uv (recommended) or pip
 - ruff for linting and formatting
 - mypy for type checking

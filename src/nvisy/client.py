@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING
 
 from .config import (
     DEFAULT_BASE_URL,
+    ENV_API_TOKEN,
     ENV_BASE_URL,
     ENV_USER_AGENT,
-    api_token_from_environment,
     validate_api_token,
     validate_base_url,
 )
+from .errors import NvisyError
 from .http import create_http_client
 from .services import (
     Account,
@@ -123,12 +124,21 @@ class Nvisy:
         """
         env = os.environ if environ is None else environ
 
-        settings: dict[str, object] = {"api_token": api_token_from_environment()}
+        settings: dict[str, object] = {}
+        if api_token := env.get(ENV_API_TOKEN):
+            settings["api_token"] = api_token
         if base_url := env.get(ENV_BASE_URL):
             settings["base_url"] = base_url
         if user_agent := env.get(ENV_USER_AGENT):
             settings["user_agent"] = user_agent
+
+        # Overrides win, so the token may arrive from either side; only report
+        # it missing once neither has supplied one.
         settings.update(overrides)
+        if not settings.get("api_token"):
+            raise NvisyError(
+                f"API token is required. Set the {ENV_API_TOKEN} environment variable."
+            )
 
         return cls(**settings)  # type: ignore[arg-type]
 
