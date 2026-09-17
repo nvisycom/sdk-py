@@ -4,7 +4,10 @@ import httpx
 import pytest
 
 import nvisy
-from nvisy import DEFAULT_BASE_URL, Nvisy, NvisyError
+
+DEFAULT_BASE_URL = nvisy.DEFAULT_BASE_URL
+Nvisy = nvisy.Nvisy
+NvisyError = nvisy.NvisyError
 
 from conftest import API_TOKEN
 
