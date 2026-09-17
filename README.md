@@ -1,20 +1,15 @@
 # Nvisy Python SDK
 
 [![PyPI version](https://img.shields.io/pypi/v/nvisy-sdk?color=000000&style=flat-square)](https://pypi.org/project/nvisy-sdk/)
-[![build](https://img.shields.io/github/actions/workflow/status/nvisy/sdk-py/build.yml?branch=main&color=000000&style=flat-square)](https://github.com/nvisy/sdk-py/actions/workflows/build.yml)
-[![python](https://img.shields.io/badge/Python-3.8+-000000?style=flat-square&logo=python&logoColor=white)](https://python.org/)
+[![build](https://img.shields.io/github/actions/workflow/status/nvisycom/sdk-py/build.yml?branch=main&color=000000&style=flat-square)](https://github.com/nvisycom/sdk-py/actions/workflows/build.yml)
+[![python](https://img.shields.io/badge/Python-3.11+-000000?style=flat-square&logo=python&logoColor=white)](https://python.org/)
 [![ruff](https://img.shields.io/badge/Ruff-000000?style=flat-square&logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
 
-Official Python SDK for the Nvisy document redaction platform.
+Official Python SDK for the Nvisy document processing platform.
 
-## Features
-
-- Modern Python 3.8+ support with full type hints
-- Async/await and synchronous interfaces
-- Flexible configuration via a config object or builder pattern
-- Built-in environment variable support
-- Automatic retry logic with smart error handling
-- Individual module exports for optimal usage
+Nvisy combines deterministic patterns, named-entity recognition, computer
+vision, and LLM classification into auditable, policy-driven redaction
+pipelines.
 
 ## Installation
 
@@ -22,187 +17,161 @@ Official Python SDK for the Nvisy document redaction platform.
 pip install nvisy-sdk
 ```
 
-## Usage
+Requires Python 3.11 or newer.
 
-### Direct Configuration
-
-Create a client by passing configuration options directly to the constructor:
-
-```python
-from nvisy import Client
-
-client = Client({
-    "api_key": "your-api-key",  # Required: 10+ chars, alphanumeric with _ and -
-    "base_url": "https://api.nvisy.com",  # Optional: API endpoint (default shown)
-    "timeout": 30.0,  # Optional: 1.0-300.0 seconds (default: 30.0)
-    "max_retries": 3,  # Optional: 0-5 attempts (default: 3)
-    "user_agent": "MyApp/1.0.0",  # Optional: custom user agent
-    "headers": {  # Optional: custom headers
-        "X-Custom-Header": "value",
-    },
-})
-```
-
-### Builder Pattern
-
-Use the fluent builder API for more readable configuration:
-
-```python
-from nvisy import Client
-
-client = Client.builder() \
-    .with_api_key("your-api-key") \
-    .with_base_url("https://api.nvisy.com") \
-    .with_timeout(60.0) \
-    .with_max_retries(5) \
-    .with_user_agent("MyApp/1.0.0") \
-    .with_header("X-Custom-Header", "value") \
-    .with_headers({"X-Another": "header"}) \
-    .build()
-```
-
-### From Environment Variables
-
-Load configuration from environment variables:
-
-```python
-from nvisy import Client, ClientBuilder
-
-# Using builder pattern from environment (allows additional configuration)
-client = ClientBuilder.from_environment() \
-    .with_timeout(60.0) \
-    .build()
-
-# Or using Client directly
-client = Client.from_environment()
-```
-
-Set these environment variables:
-
-| Variable            | Description                      | Required |
-| ------------------- | -------------------------------- | -------- |
-| `NVISY_API_TOKEN`   | API key for authentication       | Yes      |
-| `NVISY_BASE_URL`    | Custom API endpoint URL          | No       |
-| `NVISY_MAX_TIMEOUT` | Request timeout in milliseconds  | No       |
-| `NVISY_MAX_RETRIES` | Maximum number of retry attempts | No       |
-| `NVISY_USER_AGENT`  | Custom user agent string         | No       |
-
-### Async Usage
+## Quick start
 
 ```python
 import asyncio
-from nvisy import Client
 
-async def main():
-    async with Client.from_environment() as client:
-        # Get API status
-        status = await client.get("status")
-        print(f"API Status: {status}")
-        
-        # Create a document
-        document = await client.post("documents", json={
-            "name": "Example Document",
-            "description": "Created via SDK"
-        })
-        print(f"Created document: {document}")
+from nvisy import Nvisy
+
+
+async def main() -> None:
+    async with Nvisy(api_token="your-api-token") as nvisy:
+        async for workspace in nvisy.workspaces.list_workspaces():
+            print(workspace.display_name)
+
 
 asyncio.run(main())
 ```
 
-### Synchronous Usage
+The client is asynchronous, so it runs inside an event loop. Using it as a
+context manager closes its connections when you are done.
+
+## Configuration
 
 ```python
-from nvisy import Client
-
-with Client.from_environment() as client:
-    # Get API status
-    status = client.get_sync("status")
-    print(f"API Status: {status}")
-    
-    # List documents
-    documents = client.get_sync("documents")
-    print(f"Found {len(documents.get('data', []))} documents")
+nvisy = Nvisy(
+    api_token="your-api-token",
+    base_url="https://api.nvisy.com",
+    headers={"X-Custom-Header": "value"},
+    user_agent="MyApp/1.0.0",
+    with_logging=False,
+)
 ```
 
-### Error Handling
+Only `api_token` is required. Custom headers are merged over the defaults, so
+any of them can be overridden.
+
+To read the configuration from the environment instead:
 
 ```python
-from nvisy import (
-    Client,
-    NvisyError,
-    NvisyAPIError,
-    NvisyAuthenticationError,
-    NvisyRateLimitError,
-    NvisyValidationError,
-)
+nvisy = Nvisy.from_environment()
+```
+
+| Variable           | Description                | Required |
+| ------------------ | -------------------------- | -------- |
+| `NVISY_API_TOKEN`  | API token for the account  | Yes      |
+| `NVISY_BASE_URL`   | Custom API endpoint        | No       |
+| `NVISY_USER_AGENT` | Custom user agent string   | No       |
+
+Arguments passed to `from_environment` take precedence over the environment.
+
+## Services
+
+Resources hang off the client as namespaces:
+
+```python
+account = await nvisy.account.get_account()
+workspace = await nvisy.workspaces.get_workspace(workspace_id)
+document = await nvisy.documents.get_document(workspace_id, document_id)
+```
+
+| Namespace                                                         | Covers                                            |
+| ----------------------------------------------------------------- | ------------------------------------------------- |
+| `account`, `auth`, `api_tokens`, `notifications`                  | The signed-in account and its credentials         |
+| `workspaces`, `members`, `invites`, `activities`, `analytics`     | Workspaces and who belongs to them                |
+| `documents`, `pipelines`, `policies`, `detections`, `redactions`  | Processing documents and what was found in them   |
+| `reviews`                                                         | Human review of detections                        |
+| `connections`, `syncs`, `providers`, `webhooks`                   | External systems                                  |
+| `capabilities`, `status`                                          | What the deployment supports, and whether it is up |
+
+## Pagination
+
+List methods return a paginator. Await it for a single page, or iterate it to
+walk every item, fetching pages as they are needed:
+
+```python
+# One page.
+page = await nvisy.workspaces.list_workspaces(limit=50)
+print(page.items, page.total)
+
+# Every item, across pages.
+async for workspace in nvisy.workspaces.list_workspaces():
+    print(workspace.display_name)
+
+# Whole pages, when the per-page total matters.
+async for page in nvisy.workspaces.list_workspaces().pages():
+    print(len(page.items))
+```
+
+Nothing is requested until you await or iterate, and abandoning the iteration
+fetches no further pages. Pass `include_count=True` to populate `page.total`,
+which costs an extra query.
+
+## Error handling
+
+```python
+from nvisy import Nvisy, NvisyApiError, NvisyError
 
 try:
-    client = Client.from_environment()
-    result = await client.get("documents/some-id")
-except NvisyAuthenticationError:
-    print("Invalid API credentials")
-except NvisyRateLimitError as e:
-    print(f"Rate limited. Retry after {e.retry_after} seconds")
-except NvisyValidationError as e:
-    print(f"Validation failed: {e.validation_errors}")
-except NvisyAPIError as e:
-    print(f"API error {e.status_code}: {e.message}")
-    if e.request_id:
-        print(f"Request ID: {e.request_id}")
-except NvisyError as e:
-    print(f"SDK error: {e}")
+    workspace = await nvisy.workspaces.get_workspace(workspace_id)
+except NvisyApiError as error:
+    # The API answered with a 4xx or 5xx.
+    print(error.status_code, error.error_name, error.message)
+    if error.is_retryable():
+        ...
+except NvisyError as error:
+    # A configuration problem or a network failure.
+    print(error)
+```
+
+`NvisyApiError` carries the HTTP `status_code`, the API's own `error_name`
+(such as `"NotFoundError"`), the `message`, and a `request_id` when the
+response included one. It classifies itself through `is_client_error()`,
+`is_server_error()`, and `is_retryable()`.
+
+The SDK does not retry on its own; `is_retryable()` reports when doing so is
+worthwhile, leaving the policy to you.
+
+## Typed models
+
+Requests and responses are Pydantic models generated from the API's OpenAPI
+specification. Fields are snake_case in Python and serialized to the API's
+camelCase on the wire:
+
+```python
+from nvisy.datatypes import CreateWorkspace
+
+workspace = await nvisy.workspaces.create_workspace(
+    CreateWorkspace(handle="research", displayName="Research")
+)
+print(workspace.display_name)
 ```
 
 ## Development
 
-### Requirements
-
-- Python 3.8 or higher
-- uv (recommended) or pip
-- ruff for linting and formatting
-
-### Development Setup
-
 ```bash
-git clone https://github.com/nvisy/sdk-py.git
+git clone https://github.com/nvisycom/sdk-py.git
 cd sdk-py
 make setup
 ```
 
-### Scripts
+| Command             | Does                                            |
+| ------------------- | ----------------------------------------------- |
+| `make check`        | Format, lint, and type check                    |
+| `make test`         | Run the test suite                              |
+| `make test-cov`     | Run the tests with a coverage report            |
+| `make build`        | Build the package                               |
+| `make generate`     | Regenerate the datatypes from the OpenAPI spec  |
+| `make clean`        | Remove build artifacts                          |
 
-- `make build` - Build the package for distribution
-- `make dev` - Run development checks (format + lint + test)
-- `make test` - Run test suite
-- `make test-cov` - Run tests with coverage report
-- `make test-watch` - Run tests in watch mode
-- `make lint` - Check code style and quality
-- `make format` - Format code with ruff
-- `make check` - Run all linting, formatting, and type checks
-- `make type-check` - Verify type hints with mypy
-- `make clean` - Remove build artifacts
+Run `make check && make test` before submitting a change.
 
-### Quality Checks
-
-Before submitting changes:
-
-```bash
-make check    # Lint, format, and type check
-make test     # Run test suite
-make build    # Verify build works
-```
-
-## API Services
-
-The SDK provides access to the following services:
-
-- **Documents** - Document upload, management, and processing
-- **Members** - Team member invitation and management
-- **Integrations** - Third-party service integrations
-- **Status** - API health and status monitoring
-
-_Note: Service implementations are coming soon. Currently, use the base HTTP
-methods (`get`, `post`, etc.) to interact with API endpoints._
+The models in `src/nvisy/datatypes.py` are generated; the service classes that
+use them are written by hand, because the specification declares no
+`operationId`s to derive method names from.
 
 ## Changelog
 
@@ -219,5 +188,5 @@ MIT License - see [LICENSE.txt](LICENSE.txt) for details.
 ## Support
 
 - Documentation: [docs.nvisy.com](https://docs.nvisy.com)
-- Issues: [GitHub Issues](https://github.com/nvisy/sdk-py/issues)
+- Issues: [GitHub Issues](https://github.com/nvisycom/sdk-py/issues)
 - Email: [support@nvisy.com](mailto:support@nvisy.com)

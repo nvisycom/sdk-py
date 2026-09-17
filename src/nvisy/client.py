@@ -13,7 +13,29 @@ from .config import (
     validate_base_url,
 )
 from .http import create_http_client
-from .services import Status, Workspaces
+from .services import (
+    Account,
+    Activities,
+    Analytics,
+    ApiTokens,
+    Auth,
+    Capabilities,
+    Connections,
+    Detections,
+    Documents,
+    Invites,
+    Members,
+    Notifications,
+    Pipelines,
+    Policies,
+    Providers,
+    Redactions,
+    Reviews,
+    Status,
+    Syncs,
+    Webhooks,
+    Workspaces,
+)
 
 if TYPE_CHECKING:
     import os
@@ -146,9 +168,104 @@ class Nvisy:
         return self._http
 
     @property
+    def account(self) -> Account:
+        """The authenticated account, its identities, and its avatar."""
+        return Account(self._http)
+
+    @property
+    def activities(self) -> Activities:
+        """A workspace's activity log."""
+        return Activities(self._http)
+
+    @property
+    def analytics(self) -> Analytics:
+        """Aggregate figures for a workspace."""
+        return Analytics(self._http)
+
+    @property
+    def api_tokens(self) -> ApiTokens:
+        """API tokens belonging to the account."""
+        return ApiTokens(self._http)
+
+    @property
+    def auth(self) -> Auth:
+        """Session and desktop-token operations."""
+        return Auth(self._http)
+
+    @property
+    def capabilities(self) -> Capabilities:
+        """What the deployment can do: labels, recognizers, connectors."""
+        return Capabilities(self._http)
+
+    @property
+    def connections(self) -> Connections:
+        """Connections to external file services and object stores."""
+        return Connections(self._http)
+
+    @property
+    def detections(self) -> Detections:
+        """Detection runs and the redactions made from them."""
+        return Detections(self._http)
+
+    @property
+    def documents(self) -> Documents:
+        """Documents in a workspace."""
+        return Documents(self._http)
+
+    @property
+    def invites(self) -> Invites:
+        """Invitations to join a workspace."""
+        return Invites(self._http)
+
+    @property
+    def members(self) -> Members:
+        """Members of a workspace."""
+        return Members(self._http)
+
+    @property
+    def notifications(self) -> Notifications:
+        """Notifications for the authenticated account."""
+        return Notifications(self._http)
+
+    @property
+    def pipelines(self) -> Pipelines:
+        """Processing pipelines in a workspace."""
+        return Pipelines(self._http)
+
+    @property
+    def policies(self) -> Policies:
+        """Redaction policies in a workspace."""
+        return Policies(self._http)
+
+    @property
+    def providers(self) -> Providers:
+        """Inference providers configured for a workspace."""
+        return Providers(self._http)
+
+    @property
+    def redactions(self) -> Redactions:
+        """Redactions produced in a workspace."""
+        return Redactions(self._http)
+
+    @property
+    def reviews(self) -> Reviews:
+        """Document reviews, assignees, and comments."""
+        return Reviews(self._http)
+
+    @property
     def status(self) -> Status:
         """API status and health checks."""
         return Status(self._http)
+
+    @property
+    def syncs(self) -> Syncs:
+        """Synchronization runs for a workspace's connections."""
+        return Syncs(self._http)
+
+    @property
+    def webhooks(self) -> Webhooks:
+        """Webhook endpoints registered for a workspace."""
+        return Webhooks(self._http)
 
     @property
     def workspaces(self) -> Workspaces:

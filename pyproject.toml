@@ -53,11 +53,11 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/nvisy/sdk-py"
-Repository = "https://github.com/nvisy/sdk-py"
+Homepage = "https://github.com/nvisycom/sdk-py"
+Repository = "https://github.com/nvisycom/sdk-py"
 Documentation = "https://sdk-py.nvisy.com"
-Changelog = "https://github.com/nvisy/sdk-py/blob/main/CHANGELOG.md"
-"Bug Tracker" = "https://github.com/nvisy/sdk-py/issues"
+Changelog = "https://github.com/nvisycom/sdk-py/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/nvisycom/sdk-py/issues"
 
 
 
