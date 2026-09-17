@@ -130,6 +130,8 @@ asyncio_mode = "auto"
 [tool.coverage.run]
 source = ["src"]
 branch = true
+# Generated from the OpenAPI specification; declarations, nothing to exercise.
+omit = ["src/nvisy/datatypes.py"]
 
 [tool.coverage.report]
 exclude_lines = [

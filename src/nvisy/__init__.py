@@ -13,6 +13,9 @@ from .config import ClientConfiguration
 # Import errors
 from .errors import ApiError, ClientError, ConfigError, ErrorResponse, NetworkError
 
+# Import pagination
+from .pagination import AsyncPaginator
+
 __all__ = [
     "__version__",
     # Core classes
@@ -25,4 +28,6 @@ __all__ = [
     "NetworkError",
     "ApiError",
     "ErrorResponse",
+    # Pagination
+    "AsyncPaginator",
 ]
