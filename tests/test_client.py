@@ -1,13 +1,19 @@
 """Tests for the client and its configuration."""
 
+import importlib
+
 import httpx
 import pytest
 
-import nvisy
-
-DEFAULT_BASE_URL = nvisy.DEFAULT_BASE_URL
-Nvisy = nvisy.Nvisy
-NvisyError = nvisy.NvisyError
+from nvisy import (
+    DEFAULT_BASE_URL,
+    Nvisy,
+    NvisyError,
+    __version__,
+)
+from nvisy import (
+    __all__ as exported,
+)
 
 from conftest import API_TOKEN
 
@@ -29,13 +35,14 @@ class TestVersion:
 
     def test_is_a_semver_string(self):
         """The version is a dotted string."""
-        assert isinstance(nvisy.__version__, str)
-        assert len(nvisy.__version__.split(".")) >= 3
+        assert isinstance(__version__, str)
+        assert len(__version__.split(".")) >= 3
 
     def test_is_exported(self):
         """Everything named in __all__ can be imported."""
-        for name in nvisy.__all__:
-            assert hasattr(nvisy, name), name
+        package = importlib.import_module("nvisy")
+        for name in exported:
+            assert hasattr(package, name), name
 
 
 class TestApiToken:
