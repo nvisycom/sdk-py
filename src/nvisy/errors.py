@@ -147,9 +147,7 @@ class NvisyApiError(NvisyError):
         Returns:
             True for a server error, a request timeout, or rate limiting.
         """
-        return (
-            self.is_server_error() or self.status_code == 408 or self.status_code == 429
-        )
+        return self.is_server_error() or self.status_code in {408, 429}
 
     def __repr__(self) -> str:
         """Return a detailed representation of the error."""

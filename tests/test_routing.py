@@ -152,9 +152,9 @@ class TestRouting:
             pytest.skip("not addressable by ids alone")
 
         for arg in args:
-            assert (
-                arg in request.url.path
-            ), f"{service}.{method} did not route {arg} into {request.url.path}"
+            assert arg in request.url.path, (
+                f"{service}.{method} did not route {arg} into {request.url.path}"
+            )
 
     @pytest.mark.parametrize(("service", "method"), all_methods())
     async def test_paths_are_fully_expanded(self, probe, service, method):

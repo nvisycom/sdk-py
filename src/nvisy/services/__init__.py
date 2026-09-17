@@ -24,7 +24,6 @@ from .webhooks import Webhooks
 from .workspaces import Workspaces
 
 __all__ = [
-    "Service",
     "Account",
     "Activities",
     "Analytics",
@@ -42,6 +41,7 @@ __all__ = [
     "Providers",
     "Redactions",
     "Reviews",
+    "Service",
     "Status",
     "Syncs",
     "Webhooks",

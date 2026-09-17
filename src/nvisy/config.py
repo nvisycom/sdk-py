@@ -30,7 +30,8 @@ def default_user_agent() -> str:
     Returns:
         A user agent identifying the SDK and its version.
     """
-    from . import __version__
+    # Deferred: the package imports this module while initializing.
+    from . import __version__  # noqa: PLC0415
 
     return f"nvisy-sdk-python/{__version__}"
 

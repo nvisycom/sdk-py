@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from .config import (
@@ -38,7 +39,6 @@ from .services import (
 )
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Mapping
     from types import TracebackType
 
@@ -121,9 +121,7 @@ class Nvisy:
         Raises:
             NvisyError: If no API token is set.
         """
-        import os as _os
-
-        env = _os.environ if environ is None else environ
+        env = os.environ if environ is None else environ
 
         settings: dict[str, object] = {"api_token": api_token_from_environment()}
         if base_url := env.get(ENV_BASE_URL):
