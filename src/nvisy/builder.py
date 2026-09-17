@@ -2,7 +2,7 @@
 
 import contextlib
 import os
-from typing import TYPE_CHECKING, Dict, Optional, Union
+from typing import TYPE_CHECKING
 
 from .config import ClientConfiguration
 from .errors import ConfigError
@@ -20,12 +20,12 @@ class ClientBuilder:
 
     def __init__(self) -> None:
         """Initialize the builder with default values."""
-        self._api_key: Optional[str] = None
+        self._api_key: str | None = None
         self._base_url: str = "https://api.nvisy.com"
         self._timeout: float = 30.0
         self._max_retries: int = 3
-        self._user_agent: Optional[str] = None
-        self._headers: Dict[str, str] = {}
+        self._user_agent: str | None = None
+        self._headers: dict[str, str] = {}
         self._debug: bool = False
 
     def with_api_key(self, api_key: str) -> "ClientBuilder":
@@ -52,7 +52,7 @@ class ClientBuilder:
         self._base_url = base_url
         return self
 
-    def with_timeout(self, timeout: Union[int, float]) -> "ClientBuilder":
+    def with_timeout(self, timeout: int | float) -> "ClientBuilder":
         """Set the request timeout.
 
         Args:
@@ -101,7 +101,7 @@ class ClientBuilder:
         self._headers[name] = value
         return self
 
-    def with_headers(self, headers: Dict[str, str]) -> "ClientBuilder":
+    def with_headers(self, headers: dict[str, str]) -> "ClientBuilder":
         """Add multiple custom headers.
 
         Args:

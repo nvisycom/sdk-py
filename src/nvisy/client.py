@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
 import httpx
@@ -21,7 +21,7 @@ class Client:
     error handling, and both async and sync interfaces.
     """
 
-    def __init__(self, config: Union[ClientConfiguration, Dict[str, Any]]) -> None:
+    def __init__(self, config: ClientConfiguration | dict[str, Any]) -> None:
         """Initialize the client.
 
         Args:
@@ -32,8 +32,8 @@ class Client:
         else:
             self.config = config
 
-        self._http_client: Optional[httpx.AsyncClient] = None
-        self._sync_http_client: Optional[httpx.Client] = None
+        self._http_client: httpx.AsyncClient | None = None
+        self._sync_http_client: httpx.Client | None = None
 
     @classmethod
     def builder(cls) -> "ClientBuilder":
@@ -89,11 +89,11 @@ class Client:
         method: str,
         path: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make an async HTTP request with retry logic.
 
         Args:
@@ -123,7 +123,7 @@ class Client:
             request_headers.update(headers)
 
         attempt = 0
-        last_exception: Optional[Exception] = None
+        last_exception: Exception | None = None
 
         while attempt <= self.config.max_retries:
             try:
@@ -183,11 +183,11 @@ class Client:
         method: str,
         path: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a sync HTTP request with retry logic.
 
         Args:
@@ -217,7 +217,7 @@ class Client:
             request_headers.update(headers)
 
         attempt = 0
-        last_exception: Optional[Exception] = None
+        last_exception: Exception | None = None
 
         while attempt <= self.config.max_retries:
             try:
@@ -277,9 +277,9 @@ class Client:
         self,
         path: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a GET request."""
         return await self.request("GET", path, params=params, headers=headers)
 
@@ -287,11 +287,11 @@ class Client:
         self,
         path: str,
         *,
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a POST request."""
         return await self.request(
             "POST", path, json=json, data=data, params=params, headers=headers
@@ -301,11 +301,11 @@ class Client:
         self,
         path: str,
         *,
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a PUT request."""
         return await self.request(
             "PUT", path, json=json, data=data, params=params, headers=headers
@@ -315,11 +315,11 @@ class Client:
         self,
         path: str,
         *,
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a PATCH request."""
         return await self.request(
             "PATCH", path, json=json, data=data, params=params, headers=headers
@@ -329,9 +329,9 @@ class Client:
         self,
         path: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a DELETE request."""
         return await self.request("DELETE", path, params=params, headers=headers)
 
@@ -340,9 +340,9 @@ class Client:
         self,
         path: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a sync GET request."""
         return self.request_sync("GET", path, params=params, headers=headers)
 
@@ -350,11 +350,11 @@ class Client:
         self,
         path: str,
         *,
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a sync POST request."""
         return self.request_sync(
             "POST", path, json=json, data=data, params=params, headers=headers
@@ -364,11 +364,11 @@ class Client:
         self,
         path: str,
         *,
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a sync PUT request."""
         return self.request_sync(
             "PUT", path, json=json, data=data, params=params, headers=headers
@@ -378,11 +378,11 @@ class Client:
         self,
         path: str,
         *,
-        json: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a sync PATCH request."""
         return self.request_sync(
             "PATCH", path, json=json, data=data, params=params, headers=headers
@@ -392,9 +392,9 @@ class Client:
         self,
         path: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Make a sync DELETE request."""
         return self.request_sync("DELETE", path, params=params, headers=headers)
 

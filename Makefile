@@ -6,10 +6,11 @@ ifneq (,$(wildcard ./.env))
 endif
 
 # Environment variables with defaults
-OPENAPI_ENDPOINT ?= https://api.nvisy.com/openapi.yaml
+OPENAPI_ENDPOINT ?= https://api.nvisy.com/openapi.json
+OPENAPI_ENDPOINT_LOCAL ?= http://127.0.0.1:8080/api/openapi.json
 OPENAPI_OUTPUT_DIR ?= openapi
-OPENAPI_FILENAME ?= nvisy-api.yaml
-GENERATED_CODE_DIR ?= src/nvisy/generated
+OPENAPI_FILENAME ?= nvisy-api.json
+GENERATED_MODELS ?= src/nvisy/datatypes.py
 PYTHON_VERSION ?= 3.11
 
 # Colors for output
@@ -45,8 +46,11 @@ help:
 	@echo "  test-watch    - Run tests in watch mode"
 	@echo ""
 	@echo "$(YELLOW)OpenAPI:$(NC)"
-	@echo "  openapi       - Download OpenAPI spec and generate client code"
-	@echo "  download-spec - Download OpenAPI specification only"
+	@echo "  generate       - Download spec from production and generate datatypes"
+	@echo "  generate-local - Download spec from local API server and generate datatypes"
+	@echo "  check-remote   - Check connection to production API"
+	@echo "  check-local    - Check connection to local API server"
+	@echo "  download-spec  - Download OpenAPI specification only"
 	@echo ""
 	@echo "$(YELLOW)Build & Deploy:$(NC)"
 	@echo "  build         - Build package"
@@ -122,32 +126,64 @@ test-verbose:
 	uv run pytest -v
 
 # OpenAPI targets
+#
+# The datatypes module is generated from the API's OpenAPI specification; the
+# service classes wrapping it are hand-written, because the spec declares no
+# operationIds to derive method names from.
+.PHONY: check-remote
+check-remote:
+	$(call log,Checking connection to production API...)
+	@curl -sf -o /dev/null $(OPENAPI_ENDPOINT) || \
+		(echo "$(RED)Error: Cannot connect to $(OPENAPI_ENDPOINT)$(NC)" && exit 1)
+	$(call log,Connection successful)
+
+.PHONY: check-local
+check-local:
+	$(call log,Checking connection to local API server...)
+	@curl -sf -o /dev/null $(OPENAPI_ENDPOINT_LOCAL) || \
+		(echo "$(RED)Error: Cannot connect to $(OPENAPI_ENDPOINT_LOCAL)$(NC)" && exit 1)
+	$(call log,Connection successful)
+
 .PHONY: download-spec
 download-spec:
-	$(call log,Creating output directory...)
-	@mkdir -p $(OPENAPI_OUTPUT_DIR)
 	$(call log,Downloading OpenAPI specification from $(OPENAPI_ENDPOINT)...)
+	@mkdir -p $(OPENAPI_OUTPUT_DIR)
 	@curl -f -o $(OPENAPI_OUTPUT_DIR)/$(OPENAPI_FILENAME) $(OPENAPI_ENDPOINT) || \
 		(echo "$(RED)Failed to download OpenAPI specification$(NC)" && exit 1)
-	$(call log,OpenAPI specification downloaded to $(OPENAPI_OUTPUT_DIR)/$(OPENAPI_FILENAME))
+	$(call log,Specification saved to $(OPENAPI_OUTPUT_DIR)/$(OPENAPI_FILENAME))
 
-.PHONY: generate-client
-generate-client:
-	$(call log,Generating Python client code from OpenAPI spec...)
-	@mkdir -p $(GENERATED_CODE_DIR)
-	# Use openapi-generator-cli or datamodel-code-generator
-	uv run datamodel-codegen \
+.PHONY: download-spec-local
+download-spec-local:
+	$(call log,Downloading OpenAPI specification from $(OPENAPI_ENDPOINT_LOCAL)...)
+	@mkdir -p $(OPENAPI_OUTPUT_DIR)
+	@curl -f -o $(OPENAPI_OUTPUT_DIR)/$(OPENAPI_FILENAME) $(OPENAPI_ENDPOINT_LOCAL) || \
+		(echo "$(RED)Failed to download OpenAPI specification$(NC)" && exit 1)
+	$(call log,Specification saved to $(OPENAPI_OUTPUT_DIR)/$(OPENAPI_FILENAME))
+
+.PHONY: generate-models
+generate-models:
+	$(call log,Generating datatypes from OpenAPI specification...)
+	@uv run datamodel-codegen \
 		--input $(OPENAPI_OUTPUT_DIR)/$(OPENAPI_FILENAME) \
-		--output $(GENERATED_CODE_DIR)/models.py \
 		--input-file-type openapi \
-		--use-generic-container-types \
-		--use-union-operator || \
-		(echo "$(YELLOW)Code generation failed, please install datamodel-code-generator$(NC)" && true)
-	$(call log,Client code generated in $(GENERATED_CODE_DIR))
+		--output $(GENERATED_MODELS) \
+		--output-model-type pydantic_v2.BaseModel \
+		--target-python-version $(PYTHON_VERSION) \
+		--use-standard-collections \
+		--use-union-operator \
+		--snake-case-field \
+		--use-field-description \
+		--formatters ruff-format \
+		--disable-timestamp
+	$(call log,Datatypes generated in $(GENERATED_MODELS))
 
-.PHONY: openapi
-openapi: download-spec generate-client
-	$(call log,OpenAPI workflow completed!)
+.PHONY: generate
+generate: check-remote download-spec generate-models
+	$(call log,Type generation complete)
+
+.PHONY: generate-local
+generate-local: check-local download-spec-local generate-models
+	$(call log,Type generation complete)
 
 # Build and publish targets
 .PHONY: build

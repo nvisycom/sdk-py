@@ -3,7 +3,7 @@
 import contextlib
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
@@ -26,10 +26,8 @@ class ClientConfiguration(BaseModel):
     max_retries: int = Field(
         default=3, ge=0, le=5, description="Maximum number of retry attempts (0-5)"
     )
-    user_agent: Optional[str] = Field(
-        default=None, description="Custom user agent string"
-    )
-    headers: Dict[str, str] = Field(
+    user_agent: str | None = Field(default=None, description="Custom user agent string")
+    headers: dict[str, str] = Field(
         default_factory=dict, description="Additional headers to send with requests"
     )
     debug: bool = Field(default=False, description="Enable debug mode")
@@ -58,7 +56,7 @@ class ClientConfiguration(BaseModel):
 
     @field_validator("user_agent")
     @classmethod
-    def validate_user_agent(cls, v: Optional[str]) -> Optional[str]:
+    def validate_user_agent(cls, v: str | None) -> str | None:
         """Validate user agent string."""
         if v is not None and len(v.strip()) == 0:
             return None
@@ -74,7 +72,7 @@ class ClientConfiguration(BaseModel):
         """Get the effective user agent (custom or default)."""
         return self.user_agent or self.get_default_user_agent()
 
-    def get_effective_headers(self) -> Dict[str, str]:
+    def get_effective_headers(self) -> dict[str, str]:
         """Get the effective headers including authentication and user agent."""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -109,7 +107,7 @@ class ClientConfiguration(BaseModel):
                 "API key is required. Set NVISY_API_TOKEN environment variable."
             )
 
-        config_dict: Dict[str, Any] = {"api_key": api_key}
+        config_dict: dict[str, Any] = {"api_key": api_key}
 
         if base_url := os.getenv("NVISY_BASE_URL"):
             config_dict["base_url"] = base_url

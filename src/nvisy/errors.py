@@ -1,6 +1,6 @@
 """Error classes for the Nvisy SDK."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class ErrorResponse:
@@ -18,7 +18,7 @@ class ErrorResponse:
         self.message = message
         self.context = context
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         """Convert to dictionary representation."""
         return {
             "name": self.name,
@@ -39,7 +39,7 @@ class ClientError(Exception):
         super().__init__(message)
         self.message = message
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         """Convert error to dictionary representation."""
         return {
             "name": self.__class__.__name__,
@@ -63,8 +63,8 @@ class ConfigError(ClientError):
         self,
         message: str,
         *,
-        field: Optional[str] = None,
-        reason: Optional[str] = None,
+        field: str | None = None,
+        reason: str | None = None,
     ) -> None:
         """Initialize configuration error.
 
@@ -104,7 +104,7 @@ class ConfigError(ClientError):
             reason="This field is required",
         )
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         """Convert error to dictionary representation."""
         context = ""
         if self.field or self.reason:
@@ -120,7 +120,7 @@ class ConfigError(ClientError):
 class NetworkError(ClientError):
     """Network error - thrown when network requests fail."""
 
-    def __init__(self, message: str, cause: Optional[Exception] = None) -> None:
+    def __init__(self, message: str, cause: Exception | None = None) -> None:
         """Initialize network error.
 
         Args:
@@ -131,9 +131,7 @@ class NetworkError(ClientError):
         self.cause = cause
 
     @classmethod
-    def connection(
-        cls, message: str, cause: Optional[Exception] = None
-    ) -> "NetworkError":
+    def connection(cls, message: str, cause: Exception | None = None) -> "NetworkError":
         """Create error for network/connection issues."""
         return cls(message, cause=cause)
 
@@ -152,7 +150,7 @@ class NetworkError(ClientError):
         """Create error for DNS resolution failure."""
         return cls(f"Failed to resolve hostname: {hostname}")
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         """Convert error to dictionary representation."""
         context = ""
         if self.cause:
@@ -173,8 +171,8 @@ class ApiError(ClientError):
         message: str,
         status_code: int,
         *,
-        error_response: Optional[ErrorResponse] = None,
-        request_id: Optional[str] = None,
+        error_response: ErrorResponse | None = None,
+        request_id: str | None = None,
     ) -> None:
         """Initialize API error.
 
@@ -194,8 +192,8 @@ class ApiError(ClientError):
         cls,
         status_code: int,
         status_text: str,
-        error_data: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None,
+        error_data: dict[str, Any] | None = None,
+        request_id: str | None = None,
     ) -> "ApiError":
         """Create error from HTTP response.
 
@@ -229,8 +227,8 @@ class ApiError(ClientError):
     @classmethod
     def rate_limited(
         cls,
-        retry_after: Optional[int] = None,
-        request_id: Optional[str] = None,
+        retry_after: int | None = None,
+        request_id: str | None = None,
     ) -> "ApiError":
         """Create error for rate limiting.
 
@@ -268,7 +266,7 @@ class ApiError(ClientError):
             or self.status_code == 429  # Rate limited
         )
 
-    def get_retry_delay(self) -> Optional[float]:
+    def get_retry_delay(self) -> float | None:
         """Get retry delay in seconds (returns None if not retryable)."""
         if not self.is_retryable():
             return None
@@ -291,7 +289,7 @@ class ApiError(ClientError):
 
         return 1.0  # Default 1 second
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         """Convert error to dictionary representation."""
         context_parts = [f"statusCode: {self.status_code}"]
 

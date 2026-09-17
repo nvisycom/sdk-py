@@ -19,21 +19,18 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Internet :: WWW/HTTP",
 ]
 keywords = ["api", "sdk", "client", "nvisy"]
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.25.0",
-    "pydantic>=2.0.0",
+    "pydantic[email]>=2.0.0",
     "typing-extensions>=4.0.0",
-    "python-dateutil>=2.8.0",
 ]
 
 [project.optional-dependencies]
@@ -68,9 +65,11 @@ Changelog = "https://github.com/nvisy/sdk-py/blob/main/CHANGELOG.md"
 
 
 [tool.ruff]
-target-version = "py38"
+target-version = "py311"
 line-length = 88
 indent-width = 4
+# Generated from the OpenAPI specification; not ours to style.
+extend-exclude = ["src/nvisy/datatypes.py"]
 
 [tool.ruff.lint]
 select = [
@@ -150,8 +149,11 @@ exclude_lines = [
 directory = "htmlcov"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 strict = false
+# Generated from the OpenAPI specification; pydantic's conint/constr read as
+# function calls in annotations, which mypy cannot follow.
+exclude = ["src/nvisy/datatypes\\.py"]
 warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -166,11 +168,6 @@ warn_unreachable = true
 implicit_reexport = true
 strict_equality = false
 extra_checks = false
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
 
 [tool.bandit]
 exclude_dirs = ["tests", "build", "dist"]
