@@ -1,0 +1,212 @@
+name: Release
+
+env:
+  PYTHON_VERSION: "3.11"
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Extract version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            version="$INPUT_VERSION"
+            tag="v${version}"
+          else
+            tag="$REF_NAME"
+            version="${tag#v}"
+          fi
+          echo "version=${version}" >>"$GITHUB_OUTPUT"
+          echo "tag=${tag}" >>"$GITHUB_OUTPUT"
+          echo "Releasing version: ${version}"
+
+      - name: Validate version format
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([abc]|rc)?[0-9]*$'; then
+            echo "Invalid version format: $VERSION"
+            exit 1
+          fi
+
+      # The tag is what users install from, so it must name the version the
+      # package actually declares.
+      - name: Check the version matches the package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          declared=$(python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$declared" != "$VERSION" ]; then
+            echo "pyproject.toml declares $declared but the release is $VERSION"
+            exit 1
+          fi
+
+      - name: Check the changelog mentions this version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if ! grep -q "^## \[${VERSION}\]" CHANGELOG.md; then
+            echo "::warning::CHANGELOG.md has no entry for ${VERSION}."
+          fi
+
+      - name: Check tag does not already exist
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+            exit 1
+          fi
+
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Lint
+        run: uv run ruff check src tests
+
+      - name: Check types
+        run: uv run mypy src
+
+      - name: Run tests
+        run: uv run pytest
+
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [validate, verify]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify build artifacts
+        run: |
+          ls -la dist/
+          uv tool run --from twine twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ needs.validate.outputs.version }}
+          path: dist/
+          retention-days: 30
+
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [validate, build]
+    environment: release
+    permissions:
+      # Trusted publishing mints a short-lived token per run, so no API token
+      # is stored in the repository.
+      id-token: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ needs.validate.outputs.version }}
+          path: dist/
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@v1.14.2
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [validate, publish]
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ needs.validate.outputs.version }}
+          path: dist/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          # On a manual dispatch the tag does not exist yet, and GitHub would
+          # cut it from the default branch rather than the commit just built.
+          target_commitish: ${{ github.sha }}
+          name: Release ${{ needs.validate.outputs.tag }}
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(needs.validate.outputs.version, 'rc') || contains(needs.validate.outputs.version, 'a') || contains(needs.validate.outputs.version, 'b') }}
+          body: |
+            ## Release ${{ needs.validate.outputs.version }}
+
+            ### Installation
+
+            ```bash
+            pip install nvisy-sdk==${{ needs.validate.outputs.version }}
+            ```
+
+            ### Documentation
+
+            - [CHANGELOG](https://github.com/nvisycom/sdk-py/blob/main/CHANGELOG.md)
+            - [README](https://github.com/nvisycom/sdk-py#readme)
+            - [PyPI](https://pypi.org/project/nvisy-sdk/${{ needs.validate.outputs.version }}/)

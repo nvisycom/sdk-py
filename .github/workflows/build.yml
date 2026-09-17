@@ -1,0 +1,172 @@
+name: Build
+
+env:
+  # The lowest version the package supports; linting and building run here so
+  # nothing newer creeps into the released artifact.
+  PYTHON_VERSION: "3.11"
+
+on:
+  push:
+    branches:
+      - "main"
+      - "develop"
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/build.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & Types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Check formatting
+        run: uv run ruff format --check src tests
+
+      - name: Lint
+        run: uv run ruff check src tests
+
+      - name: Check types
+        run: uv run mypy src
+
+  test:
+    name: Test (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Run tests
+        run: uv run pytest
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [lint, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify build artifacts
+        run: |
+          ls -la dist/
+          test -n "$(find dist -name '*.whl' -print -quit)"
+          test -n "$(find dist -name '*.tar.gz' -print -quit)"
+
+      # A wheel that imports only from the source tree would pass the tests and
+      # still be broken once installed, so check it against a clean environment.
+      - name: Check the built wheel
+        run: |
+          uv tool run --from twine twine check dist/*
+          uv venv /tmp/wheel-check
+          VIRTUAL_ENV=/tmp/wheel-check uv pip install dist/*.whl
+          /tmp/wheel-check/bin/python -c "
+          import nvisy
+          client = nvisy.Nvisy(api_token='ci-verification-token')
+          assert client.workspaces is not None
+          print('installed', nvisy.__version__)
+          "
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  publish-dry-run:
+    name: Publish (Dry Run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # Only a release PR bumps the version. A version already on PyPI would
+      # fail the real publish on the collision, so surface that here instead.
+      - name: Check whether this version is unpublished
+        run: |
+          name=$(uv run python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['name'])")
+          version=$(uv run python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "https://pypi.org/pypi/${name}/${version}/json" || echo "000")
+          case "$code" in
+            404) echo "Version $version is not on PyPI." ;;
+            200) echo "::warning::Version $version is already on PyPI; a release would need a bump." ;;
+            *)   echo "::warning::Could not confirm whether $version is published (HTTP $code)." ;;
+          esac

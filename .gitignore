@@ -1,0 +1,76 @@
+# OS
+Thumbs.db
+.DS_Store
+
+# Editors
+.vs/
+.vscode/
+.idea/
+.fleet/
+.zed/
+
+# Python
+test-results/
+node_modules/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+
+# Generated
+openapi/
+*.openapi.*
+*.swagger.*
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+coverage/
+
+# Output
+dist/
+build/
+output/
+docs/
+
+# Environment
+.env*
+.venv*
+
+# Logs
+logs/
+*.log
+*.log*
+
+# Security and secrets
+*.pem
+*.key
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Other
+.ignore*/
+LLM.md
+
+# Distribution / packaging
+.Python
+develop-eggs/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
